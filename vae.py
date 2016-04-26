@@ -31,9 +31,10 @@ class VAE():
 			encoder_fc_attributes["batchnorm_var_%i" % i] = L.BatchNormalization(n_in)
 		self.encoder_fc = FullyConnectedNetwork(**encoder_fc_attributes)
 		self.encoder_fc.n_layers = len(encoder_fc_units)
-		self.encoder_fc.hidden_activation_function = conf.encoder_fc_hidden_activation_function
-		self.encoder_fc.output_activation_function = conf.encoder_fc_output_activation_function
-		self.encoder_fc.apply_dropout = conf.attention_fc_apply_dropout
+		self.encoder_fc.activation_function = conf.encoder_fc_activation_function
+		self.encoder_fc.apply_dropout = conf.encoder_fc_apply_dropout
+		self.encoder_fc.apply_batchnorm = conf.encoder_fc_apply_batchnorm
+		self.encoder_fc.apply_batchnorm_to_input = conf.encoder_fc_apply_batchnorm_to_input
 
 	@property
 	def xp(self):
@@ -107,7 +108,7 @@ class VAE():
 class Encoder(chainer.Chain):
 	def __init__(self, **layers):
 		super(Encoder, self).__init__(**layers)
-		self.activation_type = "tanh"
+		self.activation_function = "tanh"
 		self.apply_batchnorm_to_input = True
 		self.apply_batchnorm = True
 		self.apply_dropout = True
@@ -117,7 +118,7 @@ class Encoder(chainer.Chain):
 		return np if self.layer_0._cpu else cuda.cupy
 
 	def forward_one_step(self, x, test=False, sample_output=True):
-		activate = activations[self.activation_type]
+		f = activations[self.activation_function]
 
 		chain_mean = [x]
 		chain_variance = [x]
@@ -129,10 +130,10 @@ class Encoder(chainer.Chain):
 				if self.apply_batchnorm_to_input:
 					u = getattr(self, "batchnorm_mean_%d" % i)(u, test=test)
 			else:
-				if self.apply_batchnorm:	
+				if self.apply_batchnorm:
 					u = getattr(self, "batchnorm_mean_%d" % i)(u, test=test)
 			u = getattr(self, "layer_mean_%i" % i)(u)
-			output = activate(u)
+			output = f(u)
 			if self.apply_dropout:
 				output = F.dropout(output, train=not test)
 			chain_mean.append(output)
@@ -145,7 +146,7 @@ class Encoder(chainer.Chain):
 				if self.apply_batchnorm:
 					u = getattr(self, "batchnorm_var_%i" % i)(u, test=test)
 			u = getattr(self, "layer_var_%i" % i)(u)
-			output = activate(u)
+			output = f(u)
 			if self.apply_dropout:
 				output = F.dropout(output, train=not test)
 			chain_variance.append(output)
@@ -161,10 +162,13 @@ class Encoder(chainer.Chain):
 class Decder(chainer.Chain):
 	def __init__(self, **layers):
 		super(Decder, self).__init__(**layers)
-		self.activation_type = "tanh"
+		self.activation_function = "tanh"
+		self.apply_batchnorm_to_input = True
+		self.apply_batchnorm = True
+		self.apply_dropout = True
 
 	def forward_one_step(self, x, test=False, sample_output=True):
-		activate = activations[self.activation_type]
+		f = activations[self.activation_function]
 
 		chain_mean = [x]
 		chain_variance = [x]
@@ -176,10 +180,10 @@ class Decder(chainer.Chain):
 				if self.apply_batchnorm_to_input:
 					u = getattr(self, "batchnorm_mean_%d" % i)(u, test=test)
 			else:
-				if self.apply_batchnorm:	
+				if self.apply_batchnorm:
 					u = getattr(self, "batchnorm_mean_%d" % i)(u, test=test)
 			u = getattr(self, "layer_mean_%i" % i)(u)
-			output = activate(u)
+			output = f(u)
 			if self.apply_dropout:
 				output = F.dropout(output, train=not test)
 			chain_mean.append(output)
@@ -192,7 +196,7 @@ class Decder(chainer.Chain):
 				if self.apply_batchnorm:
 					u = getattr(self, "batchnorm_var_%i" % i)(u, test=test)
 			u = getattr(self, "layer_var_%i" % i)(u)
-			output = activate(u)
+			output = f(u)
 			if self.apply_dropout:
 				output = F.dropout(output, train=not test)
 			chain_variance.append(output)
