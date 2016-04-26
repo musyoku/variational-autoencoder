@@ -17,8 +17,21 @@ class VAE():
 	def decode(self, x):
 		return self.decoder(x)
 
-	def loss(self, x):
-		pass
+	# We set L = 1
+	def train(self, x, test=False):
+		z_mean, z_ln_var = self.encoder(x, test=test, sample_output=False)
+		# Sample z
+		z = F.gaussian(z_mean, z_ln_var)
+		# Decode
+		x_reconstruction_mean, x_reconstruction_ln_var = self.decoder(z, test=test, sample_output=False)
+		# Approximation of E_q(z|x)[log(p(x|z))]
+		reconstuction_loss = F.gaussian_nll(x, x_reconstruction_mean, x_reconstruction_ln_var)
+		# KL divergence
+		kld_regularization_loss = F.gaussian_kl_divergence(z_mean, z_ln_var)
+
+		loss = reconstuction_loss + kld_regularization_loss
+
+	def zero_grads(self):
 
 class Encoder(chainer.Chain):
 	def __init__(self, **layers):
@@ -31,7 +44,7 @@ class Encoder(chainer.Chain):
 	def xp(self):
 		return np if self.layer_0._cpu else cuda.cupy
 
-	def forward_one_step(self, x, test):
+	def forward_one_step(self, x, test=False, sample_output=True):
 		activate = activations[self.activation_type]
 
 		chain_mean = [x]
@@ -64,22 +77,18 @@ class Encoder(chainer.Chain):
 			chain_variance.append(output)
 
 		mean = chain_mean[-1]
-
 		# log(sigma^2)
 		ln_var = chain_variance[-1]
 
-		if hasattr(F, "gaussian"):
+		if sample_output:
 			return F.gaussian(mean, ln_var)
-
-		# For old chaier
-		eps = Variable(self.xp.random.normal(0, 1, (x.data.shape[0], ln_var.data.shape[1])).astype("float32"))
-		return mean + F.exp(ln_var) * eps
+		return mean, ln_var
 
 class Decder(chainer.Chain):
 	def __init__(self, **layers):
 		super(Decder, self).__init__(**layers)
 
-	def forward_one_step(self, x, test):
+	def forward_one_step(self, x, test=False, sample_output=True):
 		activate = activations[self.activation_type]
 
 		chain_mean = [x]
@@ -129,8 +138,9 @@ class Decder(chainer.Chain):
 			chain_variance.append(activations[self.output_activation_type](u))
 
 		mean = chain_mean[-1]
-
 		# log(sigma^2)
 		ln_var = chain_variance[-1]
 
-		return F.gaussian(mean, ln_var)
+		if sample_output:
+			return F.gaussian(mean, ln_var)
+		return mean, ln_var
