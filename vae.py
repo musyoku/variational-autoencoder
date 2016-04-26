@@ -75,40 +75,7 @@ class Encoder(chainer.Chain):
 		eps = Variable(self.xp.random.normal(0, 1, (x.data.shape[0], ln_var.data.shape[1])).astype("float32"))
 		return mean + F.exp(ln_var) * eps
 
-class BernoulliDecder(chainer.Chain):
-	def __init__(self, **layers):
-		super(Decder, self).__init__(**layers)
-
-	def forward_one_step_deteministic(self, x, test):
-		activate = activations[self.activation_type]
-		chain = [x]
-
-		# Hidden
-		for i in range(self.n_layers - 1):
-			u = getattr(self, "layer_%i" % i)(chain[-1])
-			if i == 0:
-				if self.apply_batchnorm_to_input:
-					u = getattr(self, "batchnorm_%i" % i)(u, test=test)
-			else:
-				if self.apply_batchnorm:
-					u = getattr(self, "batchnorm_%i" % i)(u, test=test)
-			output = activate(u)
-			if self.apply_dropout:
-				output = F.dropout(output, train=not test)
-			chain.append(output)
-
-		# Output
-		u = getattr(self, "layer_%i" % (self.n_layers - 1))(chain[-1])
-		if self.apply_batchnorm_to_output:
-			u = getattr(self, "batchnorm_%i" % (self.n_layers - 1))(u, test=test)
-		if self.output_activation_type is None:
-			chain.append(u)
-		else:
-			chain.append(activations[self.output_activation_type](u))
-
-		return chain[-1]
-
-class GaussianDecder(chainer.Chain):
+class Decder(chainer.Chain):
 	def __init__(self, **layers):
 		super(Decder, self).__init__(**layers)
 
