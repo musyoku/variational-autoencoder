@@ -8,9 +8,8 @@ from activations import activations
 
 class VAE():
 	# name is used for the filename when you save the model
-	def __init__(self, encoder, decoder, learning_rate=0.00025, gradient_momentum=0.95, name="vae"):
-		self.encoder = encoder
-		self.decoder = decoder
+	def __init__(self, conf, learning_rate=0.00025, gradient_momentum=0.95, name="vae"):
+		self.encoder, self.decoder = self.build(conf)
 		self.name = name
 
 		self.optimizer_encoder = optimizers.Adam(alpha=learning_rate, beta1=gradient_momentum)
@@ -20,6 +19,21 @@ class VAE():
 		self.optimizer_decoder = optimizers.Adam(alpha=learning_rate, beta1=gradient_momentum)
 		self.optimizer_decoder.setup(self.decoder)
 		self.optimizer_decoder.add_hook(GradientClipping(10.0))
+
+	def build(self, conf):
+		wscale = 0.1
+		encoder_fc_attributes = {}
+		encoder_fc_units = zip(conf.encoder_fc_units[:-1], conf.encoder_fc_units[1:])
+		for i, (n_in, n_out) in enumerate(encoder_fc_units):
+			encoder_fc_attributes["layer_mean_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
+			encoder_fc_attributes["batchnorm_mean_%i" % i] = L.BatchNormalization(n_in)
+			encoder_fc_attributes["layer_var_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
+			encoder_fc_attributes["batchnorm_var_%i" % i] = L.BatchNormalization(n_in)
+		self.encoder_fc = FullyConnectedNetwork(**encoder_fc_attributes)
+		self.encoder_fc.n_layers = len(encoder_fc_units)
+		self.encoder_fc.hidden_activation_function = conf.encoder_fc_hidden_activation_function
+		self.encoder_fc.output_activation_function = conf.encoder_fc_output_activation_function
+		self.encoder_fc.apply_dropout = conf.attention_fc_apply_dropout
 
 	@property
 	def xp(self):
@@ -93,6 +107,7 @@ class VAE():
 class Encoder(chainer.Chain):
 	def __init__(self, **layers):
 		super(Encoder, self).__init__(**layers)
+		self.activation_type = "tanh"
 		self.apply_batchnorm_to_input = True
 		self.apply_batchnorm = True
 		self.apply_dropout = True
@@ -116,6 +131,7 @@ class Encoder(chainer.Chain):
 			else:
 				if self.apply_batchnorm:	
 					u = getattr(self, "batchnorm_mean_%d" % i)(u, test=test)
+			u = getattr(self, "layer_mean_%i" % i)(u)
 			output = activate(u)
 			if self.apply_dropout:
 				output = F.dropout(output, train=not test)
@@ -124,10 +140,11 @@ class Encoder(chainer.Chain):
 			u = chain_variance[-1]
 			if i == 0:
 				if self.apply_batchnorm_to_input:
-					u = getattr(self, "batchnorm_variance_%i" % i)(u, test=test)
+					u = getattr(self, "batchnorm_var_%i" % i)(u, test=test)
 			else:
 				if self.apply_batchnorm:
-					u = getattr(self, "batchnorm_variance_%i" % i)(u, test=test)
+					u = getattr(self, "batchnorm_var_%i" % i)(u, test=test)
+			u = getattr(self, "layer_var_%i" % i)(u)
 			output = activate(u)
 			if self.apply_dropout:
 				output = F.dropout(output, train=not test)
@@ -144,6 +161,7 @@ class Encoder(chainer.Chain):
 class Decder(chainer.Chain):
 	def __init__(self, **layers):
 		super(Decder, self).__init__(**layers)
+		self.activation_type = "tanh"
 
 	def forward_one_step(self, x, test=False, sample_output=True):
 		activate = activations[self.activation_type]
@@ -152,47 +170,32 @@ class Decder(chainer.Chain):
 		chain_variance = [x]
 
 		# Hidden
-		for i in range(self.n_layers - 1):
-			u = getattr(self, "layer_mean_%i" % i)(chain_mean[-1])
+		for i in range(self.n_layers):
+			u = chain_mean[-1]
 			if i == 0:
 				if self.apply_batchnorm_to_input:
-					u = getattr(self, "batchnorm_mean_%i" % i)(u, test=test)
+					u = getattr(self, "batchnorm_mean_%d" % i)(u, test=test)
 			else:
-				if self.apply_batchnorm:
-					u = getattr(self, "batchnorm_mean_%i" % i)(u, test=test)
+				if self.apply_batchnorm:	
+					u = getattr(self, "batchnorm_mean_%d" % i)(u, test=test)
+			u = getattr(self, "layer_mean_%i" % i)(u)
 			output = activate(u)
 			if self.apply_dropout:
 				output = F.dropout(output, train=not test)
 			chain_mean.append(output)
 
-			u = getattr(self, "layer_variance_%i" % i)(chain_variance[-1])
+			u = chain_variance[-1]
 			if i == 0:
 				if self.apply_batchnorm_to_input:
-					u = getattr(self, "batchnorm_variance_%i" % i)(u, test=test)
+					u = getattr(self, "batchnorm_var_%i" % i)(u, test=test)
 			else:
 				if self.apply_batchnorm:
-					u = getattr(self, "batchnorm_variance_%i" % i)(u, test=test)
+					u = getattr(self, "batchnorm_var_%i" % i)(u, test=test)
+			u = getattr(self, "layer_var_%i" % i)(u)
 			output = activate(u)
 			if self.apply_dropout:
 				output = F.dropout(output, train=not test)
 			chain_variance.append(output)
-
-		# Output
-		u = getattr(self, "layer_mean_%i" % (self.n_layers - 1))(chain_mean[-1])
-		if self.apply_batchnorm_to_output:
-			u = getattr(self, "batchnorm_mean_%i" % (self.n_layers - 1))(u, test=test)
-		if self.output_activation_type is None:
-			chain_mean.append(u)
-		else:
-			chain_mean.append(activations[self.output_activation_type](u))
-
-		u = getattr(self, "layer_variance_%i" % (self.n_layers - 1))(chain_variance[-1])
-		if self.apply_batchnorm_to_output:
-			u = getattr(self, "batchnorm_variance_%i" % (self.n_layers - 1))(u, test=test)
-		if self.output_activation_type is None:
-			chain_variance.append(u)
-		else:
-			chain_variance.append(activations[self.output_activation_type](u))
 
 		mean = chain_mean[-1]
 		# log(sigma^2)
