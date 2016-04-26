@@ -7,9 +7,27 @@ from chainer import links as L
 from activations import activations
 
 class VAE():
-	def __init__(self, encoder, decoder):
+	# name is used for the filename when you save the model
+	def __init__(self, encoder, decoder, learning_rate=0.00025, gradient_momentum=0.95, name="vae"):
 		self.encoder = encoder
 		self.decoder = decoder
+		self.name = name
+
+		self.optimizer_encoder = optimizers.Adam(alpha=learning_rate, beta1=gradient_momentum)
+		self.optimizer_encoder.setup(self.encoder)
+		self.optimizer_encoder.add_hook(GradientClipping(10.0))
+
+		self.optimizer_decoder = optimizers.Adam(alpha=learning_rate, beta1=gradient_momentum)
+		self.optimizer_decoder.setup(self.decoder)
+		self.optimizer_decoder.add_hook(GradientClipping(10.0))
+
+	@property
+	def xp(self):
+		return self.encode.xp
+
+	@property
+	def gpu(self):
+		return True if self.xp is cuda.cupy else False
 
 	def encode(self, x):
 		return self.encoder(x)
@@ -28,10 +46,49 @@ class VAE():
 		reconstuction_loss = F.gaussian_nll(x, x_reconstruction_mean, x_reconstruction_ln_var)
 		# KL divergence
 		kld_regularization_loss = F.gaussian_kl_divergence(z_mean, z_ln_var)
-
 		loss = reconstuction_loss + kld_regularization_loss
 
+		self.zero_grads()
+		loss.backward()
+		self.update()
+
+		if self.gpu:
+			loss.to_cpu()
+		return loss.data
+
 	def zero_grads(self):
+		self.optimizer_encoder.zero_grads()
+		self.optimizer_decoder.zero_grads()
+
+	def update(self):
+		self.optimizer_encoder.update()
+		self.optimizer_decoder.update()
+
+	def load(self, dir=None):
+		if dir is None:
+			raise Exception()
+		for attr in vars(self):
+			prop = getattr(self, attr)
+			if isinstance(prop, chainer.Chain) or isinstance(prop, chainer.optimizer.GradientMethod):
+				filename = dir + "/%s_%s.hdf5" % (self.name, attr)
+				if os.path.isfile(filename):
+					serializers.load_hdf5(filename, prop)
+				else:
+					print filename, "missing."
+		print "model loaded."
+
+	def save(self, dir=None):
+		if dir is None:
+			raise Exception()
+		try:
+			os.mkdir(dir)
+		except:
+			pass
+		for attr in vars(self):
+			prop = getattr(self, attr)
+			if isinstance(prop, chainer.Chain) or isinstance(prop, chainer.optimizer.GradientMethod):
+				serializers.save_hdf5(dir + "/%s_%s.hdf5" % (self.name, attr), prop)
+		print "model saved."
 
 class Encoder(chainer.Chain):
 	def __init__(self, **layers):
