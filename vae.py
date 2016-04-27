@@ -22,19 +22,34 @@ class VAE():
 
 	def build(self, conf):
 		wscale = 0.1
-		encoder_fc_attributes = {}
-		encoder_fc_units = zip(conf.encoder_fc_units[:-1], conf.encoder_fc_units[1:])
-		for i, (n_in, n_out) in enumerate(encoder_fc_units):
-			encoder_fc_attributes["layer_mean_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
-			encoder_fc_attributes["batchnorm_mean_%i" % i] = L.BatchNormalization(n_in)
-			encoder_fc_attributes["layer_var_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
-			encoder_fc_attributes["batchnorm_var_%i" % i] = L.BatchNormalization(n_in)
-		self.encoder_fc = FullyConnectedNetwork(**encoder_fc_attributes)
-		self.encoder_fc.n_layers = len(encoder_fc_units)
-		self.encoder_fc.activation_function = conf.encoder_fc_activation_function
-		self.encoder_fc.apply_dropout = conf.encoder_fc_apply_dropout
-		self.encoder_fc.apply_batchnorm = conf.encoder_fc_apply_batchnorm
-		self.encoder_fc.apply_batchnorm_to_input = conf.encoder_fc_apply_batchnorm_to_input
+		encoder_attributes = {}
+		encoder_units = zip(conf.encoder_units[:-1], conf.encoder_units[1:])
+		for i, (n_in, n_out) in enumerate(encoder_units):
+			encoder_attributes["layer_mean_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
+			encoder_attributes["batchnorm_mean_%i" % i] = L.BatchNormalization(n_in)
+			encoder_attributes["layer_var_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
+			encoder_attributes["batchnorm_var_%i" % i] = L.BatchNormalization(n_in)
+		encoder = FullyConnectedNetwork(**encoder_attributes)
+		encoder.n_layers = len(encoder_units)
+		encoder.activation_function = conf.encoder_activation_function
+		encoder.apply_dropout = conf.encoder_apply_dropout
+		encoder.apply_batchnorm = conf.encoder_apply_batchnorm
+		encoder.apply_batchnorm_to_input = conf.encoder_apply_batchnorm_to_input
+
+		decoder_attributes = {}
+		decoder_units = zip(conf.decoder_units[:-1], conf.decoder_units[1:])
+		for i, (n_in, n_out) in enumerate(decoder_units):
+			decoder_attributes["layer_mean_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
+			decoder_attributes["batchnorm_mean_%i" % i] = L.BatchNormalization(n_in)
+			decoder_attributes["layer_var_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
+			decoder_attributes["batchnorm_var_%i" % i] = L.BatchNormalization(n_in)
+		decoder = FullyConnectedNetwork(**decoder_attributes)
+		decoder.n_layers = len(decoder_units)
+		decoder.activation_function = conf.decoder_activation_function
+		decoder.apply_dropout = conf.decoder_apply_dropout
+		decoder.apply_batchnorm = conf.decoder_apply_batchnorm
+		decoder.apply_batchnorm_to_input = conf.decoder_apply_batchnorm_to_input
+		return encode, decoder
 
 	@property
 	def xp(self):
