@@ -18,14 +18,14 @@ class Conf():
 		# encoder_units = [768, 2000, 1000, 100]
 		self.encoder_units = [self.ndim_x, 2000, 1000, self.ndim_z]
 		self.encoder_activation_function = "elu"
-		self.encoder_output_activation_function = None
+		self.encoder_output_activation_function = "tanh"
 		self.encoder_apply_dropout = False
 		self.encoder_apply_batchnorm = False
 		self.encoder_apply_batchnorm_to_input = False
 
 		self.decoder_units = [self.ndim_z, 1000, 2000, self.ndim_x]
 		self.decoder_activation_function = "elu"
-		self.decoder_output_activation_function = None
+		self.decoder_output_activation_function = "tanh"
 		self.decoder_apply_dropout = False
 		self.decoder_apply_batchnorm = False
 		self.decoder_apply_batchnorm_to_input = False
