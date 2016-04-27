@@ -69,7 +69,7 @@ def sample_x_and_label_variables(batchsize, ndim_x, dataset, sequential=False, u
 		x_batch.to_gpu()
 	return x_batch, label_batch
 
-def visualize_reconstruction(reconstructed_x_batch, image_width=28, image_height=28, image_channel=1, dir=None):
+def visualize_x(reconstructed_x_batch, image_width=28, image_height=28, image_channel=1, dir=None):
 	if dir is None:
 		raise Exception()
 	try:
@@ -88,7 +88,23 @@ def visualize_reconstruction(reconstructed_x_batch, image_width=28, image_height
 		elif image_channel == 3:
 			pylab.imshow(np.clip((reconstructed_x_batch[m] + 1.0) / 2.0, 0.0, 1.0).reshape((image_channel, image_width, image_height)), interpolation="none")
 		pylab.axis("off")
-	pylab.savefig("%s/reconstruction.png" % dir)
+	pylab.savefig("%s/reconstructed_x.png" % dir)
+
+def visualize_z(z_batch, dir=None):
+	if dir is None:
+		raise Exception()
+	try:
+		os.mkdir(dir)
+	except:
+		pass
+	fig = pylab.gcf()
+	fig.set_size_inches(20.0, 16.0)
+	pylab.clf()
+	for n in xrange(z_batch.shape[0]):
+		result = pylab.scatter(z_batch[n, 0], z_batch[n, 1], s=40, marker="o", edgecolors='none')
+	pylab.xlabel("z1")
+	pylab.ylabel("z2")
+	pylab.savefig("%s/latent_code.png" % dir)
 
 def visualize_walkthrough():
 	x_batch = sample_x_from_data_distribution(20)

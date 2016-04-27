@@ -137,6 +137,7 @@ class VAE():
 		# KL divergence
 		kld_regularization_loss = F.gaussian_kl_divergence(z_mean, z_ln_var)
 		loss = reconstuction_loss + kld_regularization_loss
+		loss /= x.data.shape[0]
 
 		self.zero_grads()
 		loss.backward()
@@ -144,7 +145,7 @@ class VAE():
 
 		if self.gpu:
 			loss.to_cpu()
-		return loss.data / x.data.shape[0]
+		return loss.data
 
 	def zero_grads(self):
 		self.optimizer_encoder.zero_grads()

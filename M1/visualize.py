@@ -17,7 +17,10 @@ vae.load(args.model_dir)
 dataset, labels = util.load_labeled_images(args)
 num_images = 100
 x = util.sample_x_variables(num_images, conf.ndim_x, dataset)
-_x = vae(x, test=True)
+z = vae.encode(x, test=True)
+_x = vae.decode(z, test=True)
 if conf.use_gpu:
+	z.to_cpu()
 	_x.to_cpu()
-util.visualize_reconstruction(_x.data, dir=args.vis_dir)
+util.visualize_x(_x.data, dir=args.vis_dir)
+util.visualize_z(z.data, dir=args.vis_dir)
