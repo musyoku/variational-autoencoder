@@ -41,7 +41,7 @@ def load_labeled_dataset(args, convert_to_grayscale=True):
 		f.close()
 	return dataset, labels
 
-class Adder(function.Function):
+class Concat(function.Function):
 	def check_type_forward(self, in_types):
 		n_in = in_types.size()
 		type_check.expect(n_in == 2)
@@ -67,5 +67,5 @@ class Adder(function.Function):
 		x, label = inputs
 		return grad_outputs[0][:,:x.shape[1]], grad_outputs[0][:,x.shape[1]:]
 
-def add_label(x, label):
-	return Adder()(x, label)
+def append_label(x, label):
+	return Concat()(x, label)

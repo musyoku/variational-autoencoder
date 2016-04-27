@@ -8,32 +8,42 @@ from activations import activations
 
 class Conf():
 	def __init__(self):
+		self.image_width = 28
+		self.image_height = 28
+		self.ndim_x = 28 * 28
+		self.ndim_z = 200
+
 		# ie.
 		# 768(input vector) -> 2000 -> 1000 -> 100(output vector)
 		# encoder_units = [768, 2000, 1000, 100]
-		self.encoder_units = []
+		self.encoder_units = [self.ndim_x, 512, 256, self.ndim_z]
 		self.encoder_activation_function = "tanh"
 		self.encoder_apply_dropout = True
 		self.encoder_apply_batchnorm = True
 		self.encoder_apply_batchnorm_to_input = True
 
-		self.decoder_units = []
+		self.decoder_units = [self.ndim_z, 256, 512, self.ndim_x]
 		self.decoder_activation_function = "tanh"
 		self.decoder_apply_dropout = True
 		self.decoder_apply_batchnorm = True
 		self.decoder_apply_batchnorm_to_input = True
 
+
+		self.use_gpu = True
+		self.learning_rate=0.00025
+		self.gradient_momentum=0.95
+
 class VAE():
 	# name is used for the filename when you save the model
-	def __init__(self, conf, learning_rate=0.00025, gradient_momentum=0.95, name="vae"):
+	def __init__(self, conf, name="vae"):
 		self.encoder, self.decoder = self.build(conf)
 		self.name = name
 
-		self.optimizer_encoder = optimizers.Adam(alpha=learning_rate, beta1=gradient_momentum)
+		self.optimizer_encoder = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_encoder.setup(self.encoder)
 		self.optimizer_encoder.add_hook(GradientClipping(10.0))
 
-		self.optimizer_decoder = optimizers.Adam(alpha=learning_rate, beta1=gradient_momentum)
+		self.optimizer_decoder = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_decoder.setup(self.decoder)
 		self.optimizer_decoder.add_hook(GradientClipping(10.0))
 
@@ -66,6 +76,10 @@ class VAE():
 		decoder.apply_dropout = conf.decoder_apply_dropout
 		decoder.apply_batchnorm = conf.decoder_apply_batchnorm
 		decoder.apply_batchnorm_to_input = conf.decoder_apply_batchnorm_to_input
+
+		if conf.use_gpu:
+			encode.to_gpu()
+			decoder.to_gpu()
 		return encode, decoder
 
 	@property
