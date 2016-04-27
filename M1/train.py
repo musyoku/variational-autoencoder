@@ -22,7 +22,7 @@ vae.load(args.model_dir)
 
 dataset, labels = util.load_labeled_dataset(args)
 max_epoch = 1000
-num_trains_per_epoch = 50000
+num_trains_per_epoch = 5000
 batchsize = 128
 total_time = 0
 
@@ -33,7 +33,12 @@ for epoch in xrange(max_epoch):
 		x = sample_x_variable(batchsize)
 		loss = vae.train(x)
 		sum_loss += loss
+		if t % 100 == 0:
+			sys.stdout.write("\rTraining in progress...(%d / %d)" % (t, num_trains_per_epoch))
+			sys.stdout.flush()
 	epoch_time = time.time() - epoch_time
 	total_time += epoch_time
 	print "epoch:", epoch, "loss:", sum_loss / num_trains_per_epoch, "time:", epoch_time / 60, "min", "total_time", total_time / 60, "min"
+	sys.stdout.flush()
 	vae.save(args.model_dir)
+

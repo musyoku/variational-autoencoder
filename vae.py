@@ -110,7 +110,7 @@ class VAE():
 
 	@property
 	def xp(self):
-		return self.encode.xp
+		return self.encoder.xp
 
 	@property
 	def gpu(self):
@@ -187,7 +187,7 @@ class Encoder(chainer.Chain):
 
 	@property
 	def xp(self):
-		return np if self.layer_0._cpu else cuda.cupy
+		return np if self._cpu else cuda.cupy
 
 	def forward_one_step(self, x, test=False, sample_output=True):
 		f = activations[self.activation_function]
