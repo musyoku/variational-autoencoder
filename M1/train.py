@@ -28,7 +28,7 @@ for epoch in xrange(max_epoch):
 	epoch_time = time.time() - epoch_time
 	total_time += epoch_time
 	sys.stdout.write("\r")
-	print "epoch:", epoch, "loss:", sum_loss / num_trains_per_epoch, "time:", "%d" % (epoch_time / 60), "min", "total", "%d9" % (total_time / 60), "min"
+	print "epoch:", epoch, "loss:", sum_loss / num_trains_per_epoch, "time:", "%d" % (epoch_time / 60), "min", "total", "%d" % (total_time / 60), "min"
 	sys.stdout.flush()
 	vae.save(args.model_dir)
 

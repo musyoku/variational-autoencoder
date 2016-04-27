@@ -16,22 +16,23 @@ class Conf():
 		# ie.
 		# 768(input vector) -> 2000 -> 1000 -> 100(output vector)
 		# encoder_units = [768, 2000, 1000, 100]
-		self.encoder_units = [self.ndim_x, 512, 256, self.ndim_z]
-		self.encoder_activation_function = "tanh"
-		self.encoder_apply_dropout = True
-		self.encoder_apply_batchnorm = True
-		self.encoder_apply_batchnorm_to_input = True
+		self.encoder_units = [self.ndim_x, 2000, 1000, self.ndim_z]
+		self.encoder_activation_function = "elu"
+		self.encoder_output_activation_function = None
+		self.encoder_apply_dropout = False
+		self.encoder_apply_batchnorm = False
+		self.encoder_apply_batchnorm_to_input = False
 
-		self.decoder_units = [self.ndim_z, 256, 512, self.ndim_x]
-		self.decoder_activation_function = "tanh"
-		self.decoder_apply_dropout = True
-		self.decoder_apply_batchnorm = True
-		self.decoder_apply_batchnorm_to_input = True
-
+		self.decoder_units = [self.ndim_z, 1000, 2000, self.ndim_x]
+		self.decoder_activation_function = "elu"
+		self.decoder_output_activation_function = None
+		self.decoder_apply_dropout = False
+		self.decoder_apply_batchnorm = False
+		self.decoder_apply_batchnorm_to_input = False
 
 		self.use_gpu = True
-		self.learning_rate=0.00025
-		self.gradient_momentum=0.95
+		self.learning_rate = 0.00025
+		self.gradient_momentum = 0.95
 
 def sum_sqnorm(arr):
 	sq_sum = collections.defaultdict(float)
@@ -43,7 +44,7 @@ def sum_sqnorm(arr):
 	return sum([float(i) for i in six.itervalues(sq_sum)])
 	
 class GradientClipping(object):
-	name = 'GradientClipping'
+	name = "GradientClipping"
 
 	def __init__(self, threshold):
 		self.threshold = threshold
@@ -85,6 +86,7 @@ class VAE():
 		encoder = Encoder(**encoder_attributes)
 		encoder.n_layers = len(encoder_units)
 		encoder.activation_function = conf.encoder_activation_function
+		encoder.output_activation_function = conf.encoder_output_activation_function
 		encoder.apply_dropout = conf.encoder_apply_dropout
 		encoder.apply_batchnorm = conf.encoder_apply_batchnorm
 		encoder.apply_batchnorm_to_input = conf.encoder_apply_batchnorm_to_input
@@ -99,6 +101,7 @@ class VAE():
 		decoder = Decoder(**decoder_attributes)
 		decoder.n_layers = len(decoder_units)
 		decoder.activation_function = conf.decoder_activation_function
+		decoder.output_activation_function = conf.decoder_output_activation_function
 		decoder.apply_dropout = conf.decoder_apply_dropout
 		decoder.apply_batchnorm = conf.decoder_apply_batchnorm
 		decoder.apply_batchnorm_to_input = conf.decoder_apply_batchnorm_to_input
@@ -141,7 +144,7 @@ class VAE():
 
 		if self.gpu:
 			loss.to_cpu()
-		return loss.data
+		return loss.data / x.data.shape[0]
 
 	def zero_grads(self):
 		self.optimizer_encoder.zero_grads()
@@ -159,7 +162,7 @@ class VAE():
 
 	def __call__(self, x, test=False):
 		return self.decoder(self.encoder(x, test=test), test=test)
-		
+
 	def load(self, dir=None):
 		if dir is None:
 			raise Exception()
@@ -190,6 +193,7 @@ class Encoder(chainer.Chain):
 	def __init__(self, **layers):
 		super(Encoder, self).__init__(**layers)
 		self.activation_function = "tanh"
+		self.output_activation_function = None
 		self.apply_batchnorm_to_input = True
 		self.apply_batchnorm = True
 		self.apply_dropout = True
@@ -214,9 +218,15 @@ class Encoder(chainer.Chain):
 				if self.apply_batchnorm:
 					u = getattr(self, "batchnorm_mean_%d" % i)(u, test=test)
 			u = getattr(self, "layer_mean_%i" % i)(u)
-			output = f(u)
-			if self.apply_dropout:
-				output = F.dropout(output, train=not test)
+			if i == self.n_layers - 1:
+				if self.output_activation_function is None:
+					output = u
+				else:
+					output = activations[self.output_activation_function](u)
+			else:
+				output = f(u)
+				if self.apply_dropout:
+					output = F.dropout(output, train=not test)
 			chain_mean.append(output)
 
 			u = chain_variance[-1]
@@ -227,9 +237,15 @@ class Encoder(chainer.Chain):
 				if self.apply_batchnorm:
 					u = getattr(self, "batchnorm_var_%i" % i)(u, test=test)
 			u = getattr(self, "layer_var_%i" % i)(u)
-			output = f(u)
-			if self.apply_dropout:
-				output = F.dropout(output, train=not test)
+			if i == self.n_layers - 1:
+				if self.output_activation_function is None:
+					output = u
+				else:
+					output = activations[self.output_activation_function](u)
+			else:
+				output = f(u)
+				if self.apply_dropout:
+					output = F.dropout(output, train=not test)
 			chain_variance.append(output)
 
 		mean = chain_mean[-1]
@@ -248,6 +264,7 @@ class Decoder(chainer.Chain):
 	def __init__(self, **layers):
 		super(Decoder, self).__init__(**layers)
 		self.activation_function = "tanh"
+		self.output_activation_function = None
 		self.apply_batchnorm_to_input = True
 		self.apply_batchnorm = True
 		self.apply_dropout = True
@@ -268,9 +285,15 @@ class Decoder(chainer.Chain):
 				if self.apply_batchnorm:
 					u = getattr(self, "batchnorm_mean_%d" % i)(u, test=test)
 			u = getattr(self, "layer_mean_%i" % i)(u)
-			output = f(u)
-			if self.apply_dropout:
-				output = F.dropout(output, train=not test)
+			if i == self.n_layers - 1:
+				if self.output_activation_function is None:
+					output = u
+				else:
+					output = activations[self.output_activation_function](u)
+			else:
+				output = f(u)
+				if self.apply_dropout:
+					output = F.dropout(output, train=not test)
 			chain_mean.append(output)
 
 			u = chain_variance[-1]
@@ -281,10 +304,17 @@ class Decoder(chainer.Chain):
 				if self.apply_batchnorm:
 					u = getattr(self, "batchnorm_var_%i" % i)(u, test=test)
 			u = getattr(self, "layer_var_%i" % i)(u)
-			output = f(u)
-			if self.apply_dropout:
-				output = F.dropout(output, train=not test)
+			if i == self.n_layers - 1:
+				if self.output_activation_function is None:
+					output = u
+				else:
+					output = activations[self.output_activation_function](u)
+			else:
+				output = f(u)
+				if self.apply_dropout:
+					output = F.dropout(output, train=not test)
 			chain_variance.append(output)
+
 
 		mean = chain_mean[-1]
 		# log(sigma^2)
