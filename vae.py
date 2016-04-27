@@ -6,6 +6,23 @@ from chainer import functions as F
 from chainer import links as L
 from activations import activations
 
+class Conf():
+	def __init__(self):
+		# ie.
+		# 768(input vector) -> 2000 -> 1000 -> 100(output vector)
+		# encoder_units = [768, 2000, 1000, 100]
+		self.encoder_units = []
+		self.encoder_activation_function = "tanh"
+		self.encoder_apply_dropout = True
+		self.encoder_apply_batchnorm = True
+		self.encoder_apply_batchnorm_to_input = True
+
+		self.decoder_units = []
+		self.decoder_activation_function = "tanh"
+		self.decoder_apply_dropout = True
+		self.decoder_apply_batchnorm = True
+		self.decoder_apply_batchnorm_to_input = True
+
 class VAE():
 	# name is used for the filename when you save the model
 	def __init__(self, conf, learning_rate=0.00025, gradient_momentum=0.95, name="vae"):
