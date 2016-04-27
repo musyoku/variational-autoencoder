@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
 import os, sys, time
 import numpy as np
-import chainer.functions as F
-import chainer.links as L
-from chainer import cuda, optimizer, optimizers, serializers, Variable
+from chainer import cuda, Variable
 sys.path.append(os.path.split(os.getcwd())[0])
 import util
 from args import args
@@ -20,7 +18,7 @@ def sample_x_variable(batchsize):
 		x_batch.to_gpu()
 	return x_batch
 
-vae.load()
+vae.load(args.model_dir)
 
 dataset, labels = util.load_labeled_dataset(args)
 max_epoch = 1000
@@ -38,4 +36,4 @@ for epoch in xrange(max_epoch):
 	epoch_time = time.time() - epoch_time
 	total_time += epoch_time
 	print "epoch:", epoch, "loss:", sum_loss / num_trains_per_epoch, "time:", epoch_time / 60, "min", "total_time", total_time / 60, "min"
-	vae.save()
+	vae.save(args.model_dir)

@@ -4,7 +4,7 @@ import argparse
 # Arguments
 parser = argparse.ArgumentParser()
 parser.add_argument("--use_gpu", type=bool, default=True)
-parser.add_argument("--image_dir", type=str, default="images")
+parser.add_argument("--image_dir", type=str, default="../images")
 parser.add_argument("--model_dir", type=str, default="model")
 parser.add_argument("--vis_dir", type=str, default="visualization")
 args = parser.parse_args()

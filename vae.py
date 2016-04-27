@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-import chainer
+import chainer, os, collections, six
 from chainer import cuda, Variable, function, FunctionSet, optimizers
 from chainer import functions as F
 from chainer import links as L
@@ -33,6 +33,32 @@ class Conf():
 		self.learning_rate=0.00025
 		self.gradient_momentum=0.95
 
+def sum_sqnorm(arr):
+	sq_sum = collections.defaultdict(float)
+	for x in arr:
+		with cuda.get_device(x) as dev:
+			x = x.ravel()
+			s = x.dot(x)
+			sq_sum[int(dev)] += s
+	return sum([float(i) for i in six.itervalues(sq_sum)])
+	
+class GradientClipping(object):
+	name = 'GradientClipping'
+
+	def __init__(self, threshold):
+		self.threshold = threshold
+
+	def __call__(self, opt):
+		norm = np.sqrt(sum_sqnorm([p.grad for p in opt.target.params()]))
+		if norm == 0:
+			norm = 1
+		rate = self.threshold / norm
+		if rate < 1:
+			for param in opt.target.params():
+				grad = param.grad
+				with cuda.get_device(grad):
+					grad *= rate
+
 class VAE():
 	# name is used for the filename when you save the model
 	def __init__(self, conf, name="vae"):
@@ -56,7 +82,7 @@ class VAE():
 			encoder_attributes["batchnorm_mean_%i" % i] = L.BatchNormalization(n_in)
 			encoder_attributes["layer_var_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
 			encoder_attributes["batchnorm_var_%i" % i] = L.BatchNormalization(n_in)
-		encoder = FullyConnectedNetwork(**encoder_attributes)
+		encoder = Encoder(**encoder_attributes)
 		encoder.n_layers = len(encoder_units)
 		encoder.activation_function = conf.encoder_activation_function
 		encoder.apply_dropout = conf.encoder_apply_dropout
@@ -70,7 +96,7 @@ class VAE():
 			decoder_attributes["batchnorm_mean_%i" % i] = L.BatchNormalization(n_in)
 			decoder_attributes["layer_var_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
 			decoder_attributes["batchnorm_var_%i" % i] = L.BatchNormalization(n_in)
-		decoder = FullyConnectedNetwork(**decoder_attributes)
+		decoder = Decoder(**decoder_attributes)
 		decoder.n_layers = len(decoder_units)
 		decoder.activation_function = conf.decoder_activation_function
 		decoder.apply_dropout = conf.decoder_apply_dropout
@@ -78,9 +104,9 @@ class VAE():
 		decoder.apply_batchnorm_to_input = conf.decoder_apply_batchnorm_to_input
 
 		if conf.use_gpu:
-			encode.to_gpu()
+			encoder.to_gpu()
 			decoder.to_gpu()
-		return encode, decoder
+		return encoder, decoder
 
 	@property
 	def xp(self):
@@ -205,9 +231,13 @@ class Encoder(chainer.Chain):
 			return F.gaussian(mean, ln_var)
 		return mean, ln_var
 
-class Decder(chainer.Chain):
+	def __call__(self, x, test=False, sample_output=True):
+		return self.forward_one_step(x, test=test, sample_output=sample_output)
+
+# Network structure is same as the Encoder
+class Decoder(chainer.Chain):
 	def __init__(self, **layers):
-		super(Decder, self).__init__(**layers)
+		super(Decoder, self).__init__(**layers)
 		self.activation_function = "tanh"
 		self.apply_batchnorm_to_input = True
 		self.apply_batchnorm = True
@@ -254,3 +284,6 @@ class Decder(chainer.Chain):
 		if sample_output:
 			return F.gaussian(mean, ln_var)
 		return mean, ln_var
+
+	def __call__(self, x, test=False, sample_output=True):
+		return self.forward_one_step(x, test=test, sample_output=sample_output)
