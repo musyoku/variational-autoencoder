@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import chainer, os, collections, six
-from chainer import cuda, Variable, function, FunctionSet, optimizers
+from chainer import cuda, Variable, optimizers, serializers
 from chainer import functions as F
 from chainer import links as L
 from activations import activations
@@ -151,6 +151,15 @@ class VAE():
 		self.optimizer_encoder.update()
 		self.optimizer_decoder.update()
 
+	def encode(self, x, test=False):
+		return self.encoder(x, test=test)
+
+	def decode(self, z, test=False):
+		return self.decoder(z, test=test)
+
+	def __call__(self, x, test=False):
+		return self.decoder(self.encoder(x, test=test), test=test)
+		
 	def load(self, dir=None):
 		if dir is None:
 			raise Exception()
