@@ -107,8 +107,8 @@ class VAE():
 	def encode(self, x, test=False):
 		return self.encoder(x, test=test)
 
-	def decode(self, z, test=False):
-		return self.decoder(z, test=test)
+	def decode(self, z, test=False, output_pixel_value=True):
+		return self.decoder(z, test=test, output_pixel_value=output_pixel_value)
 
 	def __call__(self, x, test=False):
 		return self.decoder(self.encoder(x, test=test), test=test)
@@ -180,16 +180,15 @@ class GaussianVAE(VAE):
 
 	def train(self, x, L=1, test=False):
 		z_mean, z_ln_var = self.encoder(x, test=test, sample_output=False)
-		loss = 0
+		reconstuction_loss = 0
 		for l in xrange(L):
 			# Sample z
 			z = F.gaussian(z_mean, z_ln_var)
 			# Decode
 			x_reconstruction_mean, x_reconstruction_ln_var = self.decoder(z, test=test, output_pixel_value=False)
 			# Approximation of E_q(z|x)[log(p(x|z))]
-			reconstuction_loss = F.gaussian_nll(x, x_reconstruction_mean, x_reconstruction_ln_var)
-			loss += reconstuction_loss
-		loss /= L * x.data.shape[0]
+			reconstuction_loss += F.gaussian_nll(x, x_reconstruction_mean, x_reconstruction_ln_var)
+		loss = reconstuction_loss / (L * x.data.shape[0])
 		# KL divergence
 		kld_regularization_loss = F.gaussian_kl_divergence(z_mean, z_ln_var)
 		loss += kld_regularization_loss / x.data.shape[0]
