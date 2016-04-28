@@ -4,7 +4,15 @@ import chainer, os, collections, six
 from chainer import cuda, Variable, optimizers, serializers
 from chainer import functions as F
 from chainer import links as L
-from activations import activations
+
+activations = {
+	"sigmoid": F.sigmoid, 
+	"tanh": F.tanh, 
+	"softplus": F.softplus, 
+	"relu": F.relu, 
+	"leaky_relu": F.leaky_relu, 
+	"elu": F.elu
+}
 
 class Conf():
 	def __init__(self):
@@ -18,7 +26,7 @@ class Conf():
 		# encoder_units = [768, 2000, 1000, 100]
 		self.encoder_units = [self.ndim_x, 2000, 1000, self.ndim_z]
 		self.encoder_activation_function = "tanh"
-		self.encoder_output_activation_function = "tanh"
+		self.encoder_output_activation_function = None	# 指定しないほうがp(z)に押し込めている感を味わえる
 		self.encoder_apply_dropout = True
 		self.encoder_apply_batchnorm = False
 		self.encoder_apply_batchnorm_to_input = False
@@ -177,7 +185,7 @@ class GaussianVAE(VAE):
 			# Sample z
 			z = F.gaussian(z_mean, z_ln_var)
 			# Decode
-			x_reconstruction_mean, x_reconstruction_ln_var = self.decoder(z, test=test, sample_output=False)
+			x_reconstruction_mean, x_reconstruction_ln_var = self.decoder(z, test=test, output_pixel_value=False)
 			# Approximation of E_q(z|x)[log(p(x|z))]
 			reconstuction_loss = F.gaussian_nll(x, x_reconstruction_mean, x_reconstruction_ln_var)
 			loss += reconstuction_loss
@@ -322,16 +330,22 @@ class Encoder(chainer.Chain):
 		# log(sigma^2)
 		ln_var = chain_variance[-1]
 
+		return mean, ln_var
+
+	def __call__(self, x, test=False, sample_output=True):
+		mean, ln_var = self.forward_one_step(x, test=test, sample_output=sample_output)
 		if sample_output:
 			return F.gaussian(mean, ln_var)
 		return mean, ln_var
 
-	def __call__(self, x, test=False, sample_output=True):
-		return self.forward_one_step(x, test=test, sample_output=sample_output)
-
 # Network structure is same as the Encoder
 class GaussianDecoder(Encoder):
-	pass
+
+	def __call__(self, x, test=False, output_pixel_value=False):
+		mean, ln_var = self.forward_one_step(x, test=test, sample_output=False)
+		if output_pixel_value:
+			return F.gaussian(mean, ln_var)
+		return mean, ln_var
 
 class BernoulliDecoder(chainer.Chain):
 	def __init__(self, **layers):
