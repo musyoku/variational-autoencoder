@@ -20,7 +20,7 @@ for epoch in xrange(max_epoch):
 	epoch_time = time.time()
 	for t in xrange(num_trains_per_epoch):
 		x = util.sample_x_variables(batchsize, conf.ndim_x, dataset)
-		loss = vae.train(x)
+		loss = vae.train(x, L=1)
 		sum_loss += loss
 		if t % 100 == 0:
 			sys.stdout.write("\rTraining in progress...(%d / %d)" % (t, num_trains_per_epoch))

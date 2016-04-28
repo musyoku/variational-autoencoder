@@ -18,7 +18,7 @@ dataset, labels = util.load_labeled_images(args)
 num_images = 100
 x = util.sample_x_variables(num_images, conf.ndim_x, dataset)
 z = vae.encode(x, test=True)
-_x = vae.decode(z, test=True)
+_x = vae.decode(z, test=True, output_pixel_value=True)
 if conf.use_gpu:
 	z.to_cpu()
 	_x.to_cpu()
