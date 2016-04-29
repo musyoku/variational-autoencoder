@@ -94,6 +94,8 @@ class VAE():
 
 	@property
 	def gpu(self):
+		if cuda.available is False:
+			return False
 		return True if self.xp is cuda.cupy else False
 
 	def zero_grads(self):
