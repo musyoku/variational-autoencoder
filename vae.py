@@ -26,7 +26,7 @@ class Conf():
 		# encoder_units = [768, 2000, 1000, 100]
 		self.encoder_units = [self.ndim_x, 2000, 1000, self.ndim_z]
 		self.encoder_activation_function = "tanh"
-		self.encoder_output_activation_function = None	# 指定しないほうがp(z)に押し込めている感を味わえる
+		self.encoder_output_activation_function = "tanh"
 		self.encoder_apply_dropout = True
 		self.encoder_apply_batchnorm = False
 		self.encoder_apply_batchnorm_to_input = False
@@ -345,7 +345,6 @@ class GaussianDecoder(Encoder):
 	def __call__(self, x, test=False, output_pixel_value=False):
 		mean, ln_var = self.forward_one_step(x, test=test, sample_output=False)
 		if output_pixel_value:
-			return mean
 			return F.gaussian(mean, ln_var)
 		return mean, ln_var
 
