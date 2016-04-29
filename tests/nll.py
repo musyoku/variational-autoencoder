@@ -28,12 +28,12 @@ vae = GaussianVAE(conf, name="m1")
 # print nll.data / batchsize
 
 # batch = util.sample_x_variables(batchsize, conf.ndim_x, dataset, use_gpu=conf.use_gpu)
-x = 1.0
+x = -1.0
 batch = np.full((batchsize, conf.ndim_x), x, dtype=np.float32)
 batch = Variable(batch)
 mu = -1.0
-mean = np.full((batchsize, conf.ndim_x), x, dtype=np.float32)
-variance = 0.001
+mean = np.full((batchsize, conf.ndim_x), mu, dtype=np.float32)
+variance = 0.004
 ln_var = np.full((batchsize, conf.ndim_x), math.log(variance), dtype=np.float32)
 mean = Variable(mean)
 ln_var = Variable(ln_var)

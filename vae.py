@@ -112,8 +112,8 @@ class VAE():
 	def decode(self, z, test=False, output_pixel_value=True):
 		return self.decoder(z, test=test, output_pixel_value=output_pixel_value)
 
-	def __call__(self, x, test=False):
-		return self.decoder(self.encoder(x, test=test), test=test)
+	def __call__(self, x, test=False, output_pixel_value=True):
+		return self.decoder(self.encoder(x, test=test), test=test, output_pixel_value=True)
 
 	def load(self, dir=None):
 		if dir is None:
@@ -345,6 +345,7 @@ class GaussianDecoder(Encoder):
 	def __call__(self, x, test=False, output_pixel_value=False):
 		mean, ln_var = self.forward_one_step(x, test=test, sample_output=False)
 		if output_pixel_value:
+			return mean
 			return F.gaussian(mean, ln_var)
 		return mean, ln_var
 
