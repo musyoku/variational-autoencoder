@@ -11,7 +11,7 @@ vae.load(args.model_dir)
 dataset, labels = util.load_labeled_images(args)
 
 max_epoch = 1000
-num_trains_per_epoch = 500
+num_trains_per_epoch = 2000
 batchsize = 128
 total_time = 0
 
