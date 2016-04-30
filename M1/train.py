@@ -21,7 +21,6 @@ for epoch in xrange(max_epoch):
 	for t in xrange(num_trains_per_epoch):
 		x = util.sample_x_variables(batchsize, conf.ndim_x, dataset, use_gpu=conf.use_gpu)
 		loss = vae.train(x)
-		print loss
 		sum_loss += loss
 		if t % 100 == 0:
 			sys.stdout.write("\rTraining in progress...(%d / %d)" % (t, num_trains_per_epoch))
