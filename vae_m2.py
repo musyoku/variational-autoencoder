@@ -296,23 +296,26 @@ class BernoulliM2VAE(VAE):
 	def encode_x_y(self, x, test=False):
 		return self.encoder_x_y(x, test=test)
 
+	def sample_x_y(self, x, test=False):
+		y_extectation = self.encoder_x_y(x, test=test, softmax=True)
+
 	def decode_yz_x(self, z, y, test=False, output_pixel_value=False):
 		input = concat_variables(z, y)
 		return self.decoder(input, test=test, output_pixel_value=output_pixel_value)
 
 	def loss_labeled(self, x, y, L=1, test=False):
 		# Math:
-		# -E_{q(z|x,y)}[logp(x|y,z) + logp(y)] + KL(q(z|x,y)||p(z))
+		# Loss = -E_{q(z|x,y)}[logp(x|y,z) + logp(y)] + KL(q(z|x,y)||p(z))
 		loss = 0
 		z_mean, z_ln_var = self.encoder_xy_z(x, y, test=test)
-		# E_{q(z|x,y)}[logp(x|y,z) + logp(y)]
+		# -E_{q(z|x,y)}[logp(x|y,z) + logp(y)]
 		for l in xrange(L):
 			# Sample z
 			z = F.gaussian(z_mean, z_ln_var)
 			# Decode
 			x_expectation = self.decode_yz_x(z, y, test=test)
 			# x is between -1 to 1 so we convert it to be between 0 to 1
-			# logp(y) = log(1/ndim_y)
+			# logp(y) = log(1/num_labels)
 			reconstuction_loss = F.bernoulli_nll((x + 1.0) / 2.0, x_expectation) - math.log(1.0 / y.data.shape[1])
 			loss += reconstuction_loss
 		loss /= L * x.data.shape[0]
@@ -321,10 +324,20 @@ class BernoulliM2VAE(VAE):
 		loss += kld_regularization_loss / x.data.shape[0]
 		return loss
 
-	def loss_unlabeled(self, x, L=1, test=False):
+	def loss_unlabeled(self, unlabeled_x, L=1, test=False):
+		# Math:
+		# Loss = -E_{q(y|x)}[-Loss(x, y)] - H(q(y|x))
+		# where H(p) is the Entropy of the given p
+
+		# -E_{q(y|x)}[-Loss(x, y)]
 		for l in xrange(L):
 			# Sample y
-			y_extectation = self.encoder_x_y(x, softmax=True)
+			labeled_y = self.encoder_x_y(unlabeled_x, test=test, softmax=True)
+			loss = self.loss_labeled(unlabeled_x, labeled_y, L=1, test=test)
+
+		# -H(q(y|x))
+		# Math:
+		# sum_{y}q(y|x)logq(y|x)
 		pass
 
 	def train(self, labeled_x, labeled_y, unlabeled_x, L=1, test=False):
@@ -335,7 +348,7 @@ class BernoulliM2VAE(VAE):
 		self.zero_grads()
 		loss.backward()
 		self.update()
-		
+
 		if self.gpu:
 			loss.to_cpu()
 		return loss.data
