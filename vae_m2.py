@@ -51,14 +51,23 @@ class Conf():
 		self.gradient_momentum = 0.95
 
 	def check(self):
-		if self.ndim_x != self.encoder_x_y_units[-1]:
+		if self.ndim_x != self.encoder_x_y_units[0]:
+			raise Exception("ndim_x != encoder_x_y_units[0]")
+
+		if self.ndim_y != self.encoder_x_y_units[-1]:
 			raise Exception("ndim_x != encoder_x_y_units[-1]")
 
-		if self.ndim_y + self.ndim_x != self.encoder_xy_z_units[-1]:
-			raise Exception("ndim_y + ndim_x != encoder_xy_z_units[-1]")
+		if self.ndim_y + self.ndim_x != self.encoder_xy_z_units[0]:
+			raise Exception("ndim_y + ndim_x != encoder_xy_z_units[0]")
 
-		if self.ndim_y + self.ndim_z != self.decoder_units[-1]:
-			raise Exception("ndim_y + ndim_z != decoder_units[-1]")
+		if self.ndim_z != self.encoder_xy_z_units[-1]:
+			raise Exception("ndim_x != encoder_xy_z_units[-1]")
+
+		if self.ndim_y + self.ndim_z != self.decoder_units[0]:
+			raise Exception("ndim_y + ndim_z != decoder_units[0]")
+
+		if self.ndim_x != self.decoder_units[-1]:
+			raise Exception("ndim_x != decoder_units[-1]")
 
 def sum_sqnorm(arr):
 	sq_sum = collections.defaultdict(float)
@@ -302,6 +311,10 @@ class SoftmaxEncoder(chainer.Chain):
 		self.apply_batchnorm = True
 		self.apply_dropout = True
 
+	@property
+	def xp(self):
+		return np if self._cpu else cuda.cupy
+
 	def forward_one_step(self, x, test):
 		f = activations[self.hidden_activation_function]
 		chain = [x]
@@ -328,8 +341,11 @@ class SoftmaxEncoder(chainer.Chain):
 
 		return chain[-1]
 
-	def __call__(self, x, test=False):
-		return self.forward_one_step(x, test=test)
+	def __call__(self, x, test=False, softmax=True):
+		output = self.forward_one_step(x, test=test)
+		if softmax:
+			return F.softmax(output)
+		return output
 
 class GaussianEncoder(chainer.Chain):
 	def __init__(self, **layers):
@@ -411,49 +427,11 @@ class GaussianDecoder(Encoder):
 			return F.gaussian(mean, ln_var)
 		return mean, ln_var
 
-class BernoulliDecoder(chainer.Chain):
-	def __init__(self, **layers):
-		super(BernoulliDecoder, self).__init__(**layers)
-		self.activation_function = "tanh"
-		self.output_activation_function = None
-		self.apply_batchnorm_to_input = True
-		self.apply_batchnorm = True
-		self.apply_dropout = True
-
-	@property
-	def xp(self):
-		return np if self._cpu else cuda.cupy
-
-	def forward_one_step(self, x, test=False, output_pixel_value=False):
-		f = activations[self.activation_function]
-		chain = [x]
-
-		# Hidden
-		for i in range(self.n_layers):
-			u = chain[-1]
-			if i == 0:
-				if self.apply_batchnorm_to_input:
-					u = getattr(self, "batchnorm_%d" % i)(u, test=test)
-			else:
-				if self.apply_batchnorm:
-					u = getattr(self, "batchnorm_%d" % i)(u, test=test)
-			u = getattr(self, "layer_%i" % i)(u)
-			if i == self.n_layers - 1:
-				if self.output_activation_function is None:
-					output = u
-				else:
-					output = activations[self.output_activation_function](u)
-			else:
-				output = f(u)
-				if self.apply_dropout:
-					output = F.dropout(output, train=not test)
-			chain.append(output)
-
-		# Pixel value must be between -1 to 1
-		if output_pixel_value:
-			return (F.sigmoid(chain[-1]) - 0.5) * 2.0
-
-		return chain[-1]
+class BernoulliDecoder(SoftmaxEncoder):
 
 	def __call__(self, x, test=False, output_pixel_value=False):
-		return self.forward_one_step(x, test=test, output_pixel_value=output_pixel_value)
+		output = self.forward_one_step(x, test=test)
+		# Pixel value must be between -1 to 1
+		if output_pixel_value:
+			return (F.sigmoid(output) - 0.5) * 2.0
+		return output

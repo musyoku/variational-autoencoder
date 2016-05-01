@@ -43,8 +43,11 @@ class Conf():
 		self.gradient_momentum = 0.95
 
 	def check(self):
-		if self.ndim_x != self.encoder_xy_z_units[-1]:
-			raise Exception("ndim_x != encoder_xy_z_units[-1]")
+		if self.ndim_x != self.encoder_units[0]:
+			raise Exception("ndim_x != encoder_units[0]")
+			
+		if self.ndim_z != self.encoder_units[-1]:
+			raise Exception("ndim_x != encoder_units[-1]")
 
 def sum_sqnorm(arr):
 	sq_sum = collections.defaultdict(float)
