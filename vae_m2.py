@@ -322,28 +322,20 @@ class BernoulliM2VAE(VAE):
 		return loss
 
 	def loss_unlabeled(self, x, L=1, test=False):
+		for l in xrange(L):
+			# Sample y
+			y_extectation = self.encoder_x_y(x, softmax=True)
 		pass
 
-	def train(self, x, L=1, test=False):
-		z_mean, z_ln_var = self.encoder(x, test=test, sample_output=False)
-		loss = 0
-		for l in xrange(L):
-			# Sample z
-			z = F.gaussian(z_mean, z_ln_var)
-			# Decode
-			x_expectation = self.decoder(z, test=test)
-			# x is between -1 to 1 so we convert it to be between 0 to 1
-			reconstuction_loss = F.bernoulli_nll((x + 1.0) / 2.0, x_expectation)
-			loss += reconstuction_loss
-		loss /= L * x.data.shape[0]
-		# KL divergence
-		kld_regularization_loss = F.gaussian_kl_divergence(z_mean, z_ln_var)
-		loss += kld_regularization_loss / x.data.shape[0]
+	def train(self, labeled_x, labeled_y, unlabeled_x, L=1, test=False):
+		loss_labeled = self.loss_labeled(labeled_x, labeled_y, L=L, test=test)
+		loss_unlabeled = self.loss_unlabeled(unlabeled_x, L=L, test=test)
+		loss = loss_labeled + loss_unlabeled
 
 		self.zero_grads()
 		loss.backward()
 		self.update()
-
+		
 		if self.gpu:
 			loss.to_cpu()
 		return loss.data
