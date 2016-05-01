@@ -327,17 +327,20 @@ class BernoulliM2VAE(VAE):
 	def loss_unlabeled(self, unlabeled_x, L=1, test=False):
 		# Math:
 		# Loss = -E_{q(y|x)}[-Loss(x, y)] - H(q(y|x))
-		# where H(p) is the Entropy of the given p
+		# where H(p) is the Entropy of the p
+		loss = 0
 
-		# -E_{q(y|x)}[-Loss(x, y)]
+		# Approximation of -E_{q(y|x)}[-Loss(x, y)]
 		for l in xrange(L):
 			# Sample y
-			labeled_y = self.encoder_x_y(unlabeled_x, test=test, softmax=True)
-			loss = self.loss_labeled(unlabeled_x, labeled_y, L=1, test=test)
+			labeled_y = self.sample_x_y(unlabeled_x, test=test)
+			loss += self.loss_labeled(unlabeled_x, labeled_y, L=1, test=test)
+		loss /= L * x.data.shape[0]
 
 		# -H(q(y|x))
 		# Math:
 		# sum_{y}q(y|x)logq(y|x)
+		y_extectation = self.encoder_x_y(unlabeled_x, test=test, softmax=True)
 		pass
 
 	def train(self, labeled_x, labeled_y, unlabeled_x, L=1, test=False):
