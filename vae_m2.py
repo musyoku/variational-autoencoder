@@ -19,28 +19,46 @@ class Conf():
 		self.image_width = 28
 		self.image_height = 28
 		self.ndim_x = 28 * 28
+		self.ndim_y = 10
 		self.ndim_z = 100
 
 		# ie.
-		# 768(input vector) -> 2000 -> 1000 -> 100(output vector)
-		# encoder_units = [768, 2000, 1000, 100]
-		self.encoder_units = [self.ndim_x, 2000, 1000, self.ndim_z]
-		self.encoder_activation_function = "tanh"
-		self.encoder_output_activation_function = "tanh"
-		self.encoder_apply_dropout = True
-		self.encoder_apply_batchnorm = False
-		self.encoder_apply_batchnorm_to_input = False
+		# 784+10(input vector) -> 2000 -> 1000 -> 100(output vector)
+		# encoder_xy_z_units = [794, 2000, 1000, 100]
+		self.encoder_xy_z_units = [self.ndim_x + self.ndim_y, 512, 256, self.ndim_z]
+		self.encoder_xy_z_activation_function = "softplus"
+		self.encoder_xy_z_output_activation_function = None
+		self.encoder_xy_z_apply_dropout = False
+		self.encoder_xy_z_apply_batchnorm = False
+		self.encoder_xy_z_apply_batchnorm_to_input = False
 
-		self.decoder_units = [self.ndim_z, 2000, 1000, self.ndim_x]
-		self.decoder_activation_function = "tanh"
+		self.encoder_x_y_units = [self.ndim_x, 512, 256, self.ndim_y]
+		self.encoder_x_y_activation_function = "softplus"
+		self.encoder_x_y_output_activation_function = None
+		self.encoder_x_y_apply_dropout = False
+		self.encoder_x_y_apply_batchnorm = False
+		self.encoder_x_y_apply_batchnorm_to_input = False
+
+		self.decoder_units = [self.ndim_z + self.ndim_y, 256, 512, self.ndim_x]
+		self.decoder_activation_function = "softplus"
 		self.decoder_output_activation_function = None	# this will be ignored when decoder is BernoulliDecoder
-		self.decoder_apply_dropout = True
+		self.decoder_apply_dropout = False
 		self.decoder_apply_batchnorm = False
 		self.decoder_apply_batchnorm_to_input = False
 
 		self.use_gpu = True
 		self.learning_rate = 0.00025
 		self.gradient_momentum = 0.95
+
+	def check(self):
+		if self.ndim_x != self.encoder_x_y_units[-1]:
+			raise Exception("ndim_x != encoder_x_y_units[-1]")
+
+		if self.ndim_y + self.ndim_x != self.encoder_xy_z_units[-1]:
+			raise Exception("ndim_y + ndim_x != encoder_xy_z_units[-1]")
+
+		if self.ndim_y + self.ndim_z != self.decoder_units[-1]:
+			raise Exception("ndim_y + ndim_z != decoder_units[-1]")
 
 def sum_sqnorm(arr):
 	sq_sum = collections.defaultdict(float)
@@ -71,12 +89,17 @@ class GradientClipping(object):
 class VAE():
 	# name is used for the filename when you save the model
 	def __init__(self, conf, name="vae"):
-		self.encoder, self.decoder = self.build(conf)
+		conf.check()
+		self.encoder_xy_z, self.encoder_x_y, self.decoder = self.build(conf)
 		self.name = name
 
-		self.optimizer_encoder = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
-		self.optimizer_encoder.setup(self.encoder)
-		self.optimizer_encoder.add_hook(GradientClipping(10.0))
+		self.optimizer_encoder_xy_z = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
+		self.optimizer_encoder_xy_z.setup(self.encoder_xy_z)
+		self.optimizer_encoder_xy_z.add_hook(GradientClipping(10.0))
+
+		self.optimizer_encoder_x_y = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
+		self.optimizer_encoder_x_y.setup(self.encoder_x_y)
+		self.optimizer_encoder_x_y.add_hook(GradientClipping(10.0))
 
 		self.optimizer_decoder = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_decoder.setup(self.decoder)
@@ -90,7 +113,7 @@ class VAE():
 
 	@property
 	def xp(self):
-		return self.encoder.xp
+		return self.encoder_xy_z.xp
 
 	@property
 	def gpu(self):
@@ -99,11 +122,13 @@ class VAE():
 		return True if self.xp is cuda.cupy else False
 
 	def zero_grads(self):
-		self.optimizer_encoder.zero_grads()
+		self.optimizer_encoder_xy_z.zero_grads()
+		self.optimizer_encoder_x_y.zero_grads()
 		self.optimizer_decoder.zero_grads()
 
 	def update(self):
-		self.optimizer_encoder.update()
+		self.optimizer_encoder_xy_z.update()
+		self.optimizer_encoder_x_y.update()
 		self.optimizer_decoder.update()
 
 	def encode(self, x, test=False):
@@ -141,24 +166,24 @@ class VAE():
 				serializers.save_hdf5(dir + "/%s_%s.hdf5" % (self.name, attr), prop)
 		print "model saved."
 
-class GaussianVAE(VAE):
+class GaussianM1VAE(VAE):
 
 	def build(self, conf):
 		wscale = 0.1
-		encoder_attributes = {}
-		encoder_units = zip(conf.encoder_units[:-1], conf.encoder_units[1:])
-		for i, (n_in, n_out) in enumerate(encoder_units):
-			encoder_attributes["layer_mean_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
-			encoder_attributes["batchnorm_mean_%i" % i] = L.BatchNormalization(n_in)
-			encoder_attributes["layer_var_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
-			encoder_attributes["batchnorm_var_%i" % i] = L.BatchNormalization(n_in)
-		encoder = Encoder(**encoder_attributes)
-		encoder.n_layers = len(encoder_units)
-		encoder.activation_function = conf.encoder_activation_function
-		encoder.output_activation_function = conf.encoder_output_activation_function
-		encoder.apply_dropout = conf.encoder_apply_dropout
-		encoder.apply_batchnorm = conf.encoder_apply_batchnorm
-		encoder.apply_batchnorm_to_input = conf.encoder_apply_batchnorm_to_input
+		encoder_xy_z_attributes = {}
+		encoder_xy_z_units = zip(conf.encoder_xy_z_units[:-1], conf.encoder_xy_z_units[1:])
+		for i, (n_in, n_out) in enumerate(encoder_xy_z_units):
+			encoder_xy_z_attributes["layer_mean_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
+			encoder_xy_z_attributes["batchnorm_mean_%i" % i] = L.BatchNormalization(n_in)
+			encoder_xy_z_attributes["layer_var_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
+			encoder_xy_z_attributes["batchnorm_var_%i" % i] = L.BatchNormalization(n_in)
+		encoder = GaussianEncoder(**encoder_xy_z_attributes)
+		encoder.n_layers = len(encoder_xy_z_units)
+		encoder.activation_function = conf.encoder_xy_z_activation_function
+		encoder.output_activation_function = conf.encoder_xy_z_output_activation_function
+		encoder.apply_dropout = conf.encoder_xy_z_apply_dropout
+		encoder.apply_batchnorm = conf.encoder_xy_z_apply_batchnorm
+		encoder.apply_batchnorm_to_input = conf.encoder_xy_z_apply_batchnorm_to_input
 
 		decoder_attributes = {}
 		decoder_units = zip(conf.decoder_units[:-1], conf.decoder_units[1:])
@@ -203,24 +228,24 @@ class GaussianVAE(VAE):
 			loss.to_cpu()
 		return loss.data
 
-class BernoulliVAE(VAE):
+class BernoulliM1VAE(VAE):
 
 	def build(self, conf):
-		wscale = 0.1
-		encoder_attributes = {}
-		encoder_units = zip(conf.encoder_units[:-1], conf.encoder_units[1:])
-		for i, (n_in, n_out) in enumerate(encoder_units):
-			encoder_attributes["layer_mean_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
-			encoder_attributes["batchnorm_mean_%i" % i] = L.BatchNormalization(n_in)
-			encoder_attributes["layer_var_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
-			encoder_attributes["batchnorm_var_%i" % i] = L.BatchNormalization(n_in)
-		encoder = Encoder(**encoder_attributes)
-		encoder.n_layers = len(encoder_units)
-		encoder.activation_function = conf.encoder_activation_function
-		encoder.output_activation_function = conf.encoder_output_activation_function
-		encoder.apply_dropout = conf.encoder_apply_dropout
-		encoder.apply_batchnorm = conf.encoder_apply_batchnorm
-		encoder.apply_batchnorm_to_input = conf.encoder_apply_batchnorm_to_input
+		wscale = 1.0
+		encoder_xy_z_attributes = {}
+		encoder_xy_z_units = zip(conf.encoder_xy_z_units[:-1], conf.encoder_xy_z_units[1:])
+		for i, (n_in, n_out) in enumerate(encoder_xy_z_units):
+			encoder_xy_z_attributes["layer_mean_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
+			encoder_xy_z_attributes["batchnorm_mean_%i" % i] = L.BatchNormalization(n_in)
+			encoder_xy_z_attributes["layer_var_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
+			encoder_xy_z_attributes["batchnorm_var_%i" % i] = L.BatchNormalization(n_in)
+		encoder_xy_z = Encoder(**encoder_xy_z_attributes)
+		encoder_xy_z.n_layers = len(encoder_xy_z_units)
+		encoder_xy_z.activation_function = conf.encoder_xy_z_activation_function
+		encoder_xy_z.output_activation_function = conf.encoder_xy_z_output_activation_function
+		encoder_xy_z.apply_dropout = conf.encoder_xy_z_apply_dropout
+		encoder_xy_z.apply_batchnorm = conf.encoder_xy_z_apply_batchnorm
+		encoder_xy_z.apply_batchnorm_to_input = conf.encoder_xy_z_apply_batchnorm_to_input
 
 		decoder_attributes = {}
 		decoder_units = zip(conf.decoder_units[:-1], conf.decoder_units[1:])
@@ -236,9 +261,9 @@ class BernoulliVAE(VAE):
 		decoder.apply_batchnorm_to_input = conf.decoder_apply_batchnorm_to_input
 
 		if conf.use_gpu:
-			encoder.to_gpu()
+			encoder_xy_z.to_gpu()
 			decoder.to_gpu()
-		return encoder, decoder
+		return encoder_xy_z, decoder
 
 	def decode(self, z, test=False, output_pixel_value=False):
 		return self.decoder(z, test=test, output_pixel_value=output_pixel_value)
@@ -268,9 +293,47 @@ class BernoulliVAE(VAE):
 			loss.to_cpu()
 		return loss.data
 
-class Encoder(chainer.Chain):
+class SoftmaxEncoder(chainer.Chain):
 	def __init__(self, **layers):
-		super(Encoder, self).__init__(**layers)
+		super(SoftmaxEncoder, self).__init__(**layers)
+		self.activation_function = "tanh"
+		self.output_activation_function = None
+		self.apply_batchnorm_to_input = True
+		self.apply_batchnorm = True
+		self.apply_dropout = True
+
+	def forward_one_step(self, x, test):
+		f = activations[self.hidden_activation_function]
+		chain = [x]
+
+		for i in range(self.n_layers):
+			u = chain[-1]
+			if i == 0:
+				if self.apply_batchnorm_to_input:
+					u = getattr(self, "batchnorm_%d" % i)(u, test=test)
+			else:
+				if self.apply_batchnorm:
+					u = getattr(self, "batchnorm_%d" % i)(u, test=test)
+			u = getattr(self, "layer_%i" % i)(u)
+			if i == self.n_layers - 1:
+				if self.output_activation_function is None:
+					output = u
+				else:
+					output = activations[self.output_activation_function](u)
+			else:
+				output = f(u)
+				if self.apply_dropout:
+					output = F.dropout(output, train=not test)
+			chain.append(output)
+
+		return chain[-1]
+
+	def __call__(self, x, test=False):
+		return self.forward_one_step(x, test=test)
+
+class GaussianEncoder(chainer.Chain):
+	def __init__(self, **layers):
+		super(GaussianEncoder, self).__init__(**layers)
 		self.activation_function = "tanh"
 		self.output_activation_function = None
 		self.apply_batchnorm_to_input = True
@@ -376,7 +439,10 @@ class BernoulliDecoder(chainer.Chain):
 					u = getattr(self, "batchnorm_%d" % i)(u, test=test)
 			u = getattr(self, "layer_%i" % i)(u)
 			if i == self.n_layers - 1:
-				output = u
+				if self.output_activation_function is None:
+					output = u
+				else:
+					output = activations[self.output_activation_function](u)
 			else:
 				output = f(u)
 				if self.apply_dropout:
