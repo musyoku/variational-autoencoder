@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import math
 import numpy as np
 import chainer, os, collections, six
 from chainer import cuda, Variable, optimizers, serializers
@@ -299,6 +300,30 @@ class BernoulliM2VAE(VAE):
 		input = concat_variables(z, y)
 		return self.decoder(input, test=test, output_pixel_value=output_pixel_value)
 
+	def loss_labeled(self, x, y, L=1, test=False):
+		# Math:
+		# -E_{q(z|x,y)}[logp(x|y,z) + logp(y)] + KL(q(z|x,y)||p(z))
+		loss = 0
+		z_mean, z_ln_var = self.encoder_xy_z(x, y, test=test)
+		# E_{q(z|x,y)}[logp(x|y,z) + logp(y)]
+		for l in xrange(L):
+			# Sample z
+			z = F.gaussian(z_mean, z_ln_var)
+			# Decode
+			x_expectation = self.decode_yz_x(z, y, test=test)
+			# x is between -1 to 1 so we convert it to be between 0 to 1
+			# logp(y) = log(1/ndim_y)
+			reconstuction_loss = F.bernoulli_nll((x + 1.0) / 2.0, x_expectation) - math.log(1.0 / y.data.shape[1])
+			loss += reconstuction_loss
+		loss /= L * x.data.shape[0]
+		# KL(q(z|x,y)||p(z))
+		kld_regularization_loss = F.gaussian_kl_divergence(z_mean, z_ln_var)
+		loss += kld_regularization_loss / x.data.shape[0]
+		return loss
+
+	def loss_unlabeled(self, x, L=1, test=False):
+		pass
+
 	def train(self, x, L=1, test=False):
 		z_mean, z_ln_var = self.encoder(x, test=test, sample_output=False)
 		loss = 0
@@ -307,7 +332,6 @@ class BernoulliM2VAE(VAE):
 			z = F.gaussian(z_mean, z_ln_var)
 			# Decode
 			x_expectation = self.decoder(z, test=test)
-			# Approximation of E_q(z|x)[log(p(x|z))]
 			# x is between -1 to 1 so we convert it to be between 0 to 1
 			reconstuction_loss = F.bernoulli_nll((x + 1.0) / 2.0, x_expectation)
 			loss += reconstuction_loss
