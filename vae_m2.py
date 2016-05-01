@@ -175,7 +175,7 @@ class VAE():
 				serializers.save_hdf5(dir + "/%s_%s.hdf5" % (self.name, attr), prop)
 		print "model saved."
 
-class GaussianM1VAE(VAE):
+class GaussianM2VAE(VAE):
 
 	def build(self, conf):
 		wscale = 0.1
@@ -237,7 +237,7 @@ class GaussianM1VAE(VAE):
 			loss.to_cpu()
 		return loss.data
 
-class BernoulliM1VAE(VAE):
+class BernoulliM2VAE(VAE):
 
 	def build(self, conf):
 		wscale = 1.0
@@ -248,13 +248,26 @@ class BernoulliM1VAE(VAE):
 			encoder_xy_z_attributes["batchnorm_mean_%i" % i] = L.BatchNormalization(n_in)
 			encoder_xy_z_attributes["layer_var_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
 			encoder_xy_z_attributes["batchnorm_var_%i" % i] = L.BatchNormalization(n_in)
-		encoder_xy_z = Encoder(**encoder_xy_z_attributes)
+		encoder_xy_z = GaussianEncoder(**encoder_xy_z_attributes)
 		encoder_xy_z.n_layers = len(encoder_xy_z_units)
 		encoder_xy_z.activation_function = conf.encoder_xy_z_activation_function
 		encoder_xy_z.output_activation_function = conf.encoder_xy_z_output_activation_function
 		encoder_xy_z.apply_dropout = conf.encoder_xy_z_apply_dropout
 		encoder_xy_z.apply_batchnorm = conf.encoder_xy_z_apply_batchnorm
 		encoder_xy_z.apply_batchnorm_to_input = conf.encoder_xy_z_apply_batchnorm_to_input
+
+		encoder_x_y_attributes = {}
+		encoder_x_y_units = zip(conf.encoder_x_y_units[:-1], conf.encoder_x_y_units[1:])
+		for i, (n_in, n_out) in enumerate(encoder_x_y_units):
+			encoder_x_y_attributes["layer_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
+			encoder_x_y_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
+		encoder_x_y = SoftmaxEncoder(**encoder_x_y_attributes)
+		encoder_x_y.n_layers = len(encoder_x_y_units)
+		encoder_x_y.activation_function = conf.encoder_x_y_activation_function
+		encoder_x_y.output_activation_function = conf.encoder_x_y_output_activation_function
+		encoder_x_y.apply_dropout = conf.encoder_x_y_apply_dropout
+		encoder_x_y.apply_batchnorm = conf.encoder_x_y_apply_batchnorm
+		encoder_x_y.apply_batchnorm_to_input = conf.encoder_x_y_apply_batchnorm_to_input
 
 		decoder_attributes = {}
 		decoder_units = zip(conf.decoder_units[:-1], conf.decoder_units[1:])
@@ -271,11 +284,20 @@ class BernoulliM1VAE(VAE):
 
 		if conf.use_gpu:
 			encoder_xy_z.to_gpu()
+			encoder_x_y.to_gpu()
 			decoder.to_gpu()
-		return encoder_xy_z, decoder
+		return encoder_xy_z, encoder_x_y, decoder
 
-	def decode(self, z, test=False, output_pixel_value=False):
-		return self.decoder(z, test=test, output_pixel_value=output_pixel_value)
+	def encode_xy_z(self, x, y, test=False):
+		input = concat_variables(x, y)
+		return self.encoder_xy_z(input, test=test)
+
+	def encode_x_y(self, x, test=False):
+		return self.encoder_x_y(x, test=test)
+
+	def decode_yz_x(self, z, y, test=False, output_pixel_value=False):
+		input = concat_variables(z, y)
+		return self.decoder(input, test=test, output_pixel_value=output_pixel_value)
 
 	def train(self, x, L=1, test=False):
 		z_mean, z_ln_var = self.encoder(x, test=test, sample_output=False)
@@ -435,3 +457,32 @@ class BernoulliDecoder(SoftmaxEncoder):
 		if output_pixel_value:
 			return (F.sigmoid(output) - 0.5) * 2.0
 		return output
+
+class Concat(function.Function):
+	def check_type_forward(self, in_types):
+		n_in = in_types.size()
+		type_check.expect(n_in == 2)
+		a_type, b_type = in_types
+
+		type_check.expect(
+			a_type.dtype == np.float32,
+			b_type.dtype == np.float32,
+			a_type.ndim == 2,
+			b_type.ndim == 2,
+		)
+
+	def forward(self, inputs):
+		xp = cuda.get_array_module(inputs[0])
+		v_a, v_b = inputs
+		n_batch = v_a.shape[0]
+		output = xp.empty((n_batch, v_a.shape[1] + v_b.shape[1]), dtype=xp.float32)
+		output[:,:v_a.shape[1]] = v_a
+		output[:,v_a.shape[1]:] = v_b
+		return output,
+
+	def backward(self, inputs, grad_outputs):
+		v_a, v_b = inputs
+		return grad_outputs[0][:,:v_a.shape[1]], grad_outputs[0][:,v_a.shape[1]:]
+
+def concat_variables(v_a, v_b):
+	return Concat()(v_a, v_b)
