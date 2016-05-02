@@ -341,11 +341,13 @@ class BernoulliM2VAE(VAE):
 		# Math:
 		# sum_{y}q(y|x)logq(y|x)
 		y_extectation = self.encoder_x_y(unlabeled_x, test=test, softmax=True)
-		pass
+		entropy = F.sum(y_extectation * F.log(y_extectation))
+		loss += entropy / x.data.shape[0]
+		return loss
 
-	def train(self, labeled_x, labeled_y, unlabeled_x, L=1, test=False):
-		loss_labeled = self.loss_labeled(labeled_x, labeled_y, L=L, test=test)
-		loss_unlabeled = self.loss_unlabeled(unlabeled_x, L=L, test=test)
+	def train(self, labeled_x, labeled_y, unlabeled_x, labeled_L=1, unlabeled_L=1, test=False):
+		loss_labeled = self.loss_labeled(labeled_x, labeled_y, L=labeled_L, test=test)
+		loss_unlabeled = self.loss_unlabeled(unlabeled_x, L=unlabeled_L, test=test)
 		loss = loss_labeled + loss_unlabeled
 
 		self.zero_grads()
