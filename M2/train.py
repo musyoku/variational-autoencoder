@@ -18,7 +18,7 @@ total_time = 0
 # Create labeled/unlabeled split in training set
 max_labbeled_data = 100
 labeled_dataset, labels, unlabeled_dataset = util.create_semisupervised(dataset, labels, max_labbeled_data)
-
+print "dataset::", "labeled:", len(labeled_dataset), "unlabeled:", len(unlabeled_dataset)
 
 for epoch in xrange(max_epoch):
 	sum_loss_labeled = 0
