@@ -145,6 +145,7 @@ class VAE():
 			if isinstance(prop, chainer.Chain) or isinstance(prop, chainer.optimizer.GradientMethod):
 				filename = dir + "/%s_%s.hdf5" % (self.name, attr)
 				if os.path.isfile(filename):
+					print "loading",  filename
 					serializers.load_hdf5(filename, prop)
 				else:
 					print filename, "missing."
@@ -339,6 +340,7 @@ class BernoulliM2VAE(VAE):
 				# Under development
 				pass
 			else:
+				# -E_{q(y|x)}[-Loss(x, y)]
 				y_distribution = y_distribution.data
 				xp = self.xp
 				if self.gpu:
@@ -347,17 +349,20 @@ class BernoulliM2VAE(VAE):
 				for b in xrange(batchsize):
 					label_id = np.random.choice(np.arange(n_labels), p=y_distribution[b])
 					sampled_y[b, label_id] = 1
+					print label_id
+					print y_distribution[b]
+
 				sampled_y = Variable(sampled_y)
 				if self.gpu:
 					sampled_y.to_gpu()
 				loss += self.loss_labeled(unlabeled_x, sampled_y, L=1, test=test)
-		loss /= L * batchsize
+		loss /= L
 
 		# -H(q(y|x))
 		# Math:
 		# sum_{y}q(y|x)logq(y|x)
 		y_extectation = self.encoder_x_y(unlabeled_x, test=test, softmax=True)
-		entropy = F.sum(y_extectation * F.log(y_extectation))
+		entropy = -F.sum(y_extectation * F.log(y_extectation))
 		loss += entropy / batchsize
 		return loss
 
@@ -374,6 +379,28 @@ class BernoulliM2VAE(VAE):
 			loss_labeled.to_cpu()
 			loss_unlabeled.to_cpu()
 		return loss_labeled.data, loss_unlabeled.data
+
+	def train_supervised(self, labeled_x, labeled_y, L=1, test=False):
+		loss = self.loss_labeled(labeled_x, labeled_y, L=L, test=test)
+
+		self.zero_grads()
+		loss.backward()
+		self.update()
+
+		if self.gpu:
+			loss.to_cpu()
+		return loss.data
+
+	def train_unsupervised(self, unlabeled_x, n_labels, L=1, test=False):
+		loss = self.loss_unlabeled(unlabeled_x, n_labels, L=L, test=test)
+
+		self.zero_grads()
+		loss.backward()
+		self.update()
+
+		if self.gpu:
+			loss.to_cpu()
+		return loss.data
 
 class SoftmaxEncoder(chainer.Chain):
 	def __init__(self, **layers):
