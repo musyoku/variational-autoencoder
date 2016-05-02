@@ -26,7 +26,7 @@ for epoch in xrange(max_epoch):
 	for t in xrange(num_trains_per_epoch):
 		x_labeled, y_labeled = util.sample_x_and_y_variables(batchsize, conf.ndim_x, conf.ndim_y, labeled_dataset, labels, use_gpu=conf.use_gpu)
 		x_unlabeled = util.sample_x_variable(batchsize, conf.ndim_x, unlabeled_dataset, use_gpu=conf.use_gpu)
-		loss = vae.train(x_labeled, y_labeled, x_unlabeled)
+		loss = vae.train(x_labeled, y_labeled, x_unlabeled, conf.ndim_y)
 		sum_loss += loss
 		if t % 100 == 0:
 			sys.stdout.write("\rTraining in progress...(%d / %d)" % (t, num_trains_per_epoch))

@@ -298,6 +298,7 @@ class BernoulliM2VAE(VAE):
 
 	def sample_x_y(self, x, test=False):
 		y_extectation = self.encoder_x_y(x, test=test, softmax=True)
+		print y_extectation.data
 
 	def decode_yz_x(self, z, y, test=False, output_pixel_value=False):
 		return self.decoder(z, y, test=test, output_pixel_value=output_pixel_value)
@@ -323,30 +324,46 @@ class BernoulliM2VAE(VAE):
 		loss += kld_regularization_loss / x.data.shape[0]
 		return loss
 
-	def loss_unlabeled(self, unlabeled_x, L=1, test=False):
+	def loss_unlabeled(self, unlabeled_x, n_labels, L=1, test=False):
 		# Math:
 		# Loss = -E_{q(y|x)}[-Loss(x, y)] - H(q(y|x))
 		# where H(p) is the Entropy of the p
 		loss = 0
+		batchsize = unlabeled_x.data.shape[0]
 
 		# Approximation of -E_{q(y|x)}[-Loss(x, y)]
 		for l in xrange(L):
-			# Sample y
-			labeled_y = self.sample_x_y(unlabeled_x, test=test)
-			loss += self.loss_labeled(unlabeled_x, labeled_y, L=1, test=test)
-		loss /= L * x.data.shape[0]
+			y_distribution = self.encode_x_y(unlabeled_x, test=test)
+			if False:
+				# Compute -E_{q(y|x)}[-Loss(x, y)] for all y
+				# Under development
+				pass
+			else:
+				y_distribution = y_distribution.data
+				xp = self.xp
+				if self.gpu:
+					y_distribution = cuda.to_cpu(y_distribution)
+				sampled_y = np.zeros((batchsize, n_labels), dtype=np.float32)
+				for b in xrange(batchsize):
+					label_id = np.random.choice(np.arange(n_labels), p=y_distribution[b])
+					sampled_y[b, label_id] = 1
+				sampled_y = Variable(sampled_y)
+				if self.gpu:
+					sampled_y.to_gpu()
+				loss += self.loss_labeled(unlabeled_x, sampled_y, L=1, test=test)
+		loss /= L * batchsize
 
 		# -H(q(y|x))
 		# Math:
 		# sum_{y}q(y|x)logq(y|x)
 		y_extectation = self.encoder_x_y(unlabeled_x, test=test, softmax=True)
 		entropy = F.sum(y_extectation * F.log(y_extectation))
-		loss += entropy / x.data.shape[0]
+		loss += entropy / batchsize
 		return loss
 
-	def train(self, labeled_x, labeled_y, unlabeled_x, labeled_L=1, unlabeled_L=1, test=False):
+	def train(self, labeled_x, labeled_y, unlabeled_x, n_labels, labeled_L=1, unlabeled_L=1, test=False):
 		loss_labeled = self.loss_labeled(labeled_x, labeled_y, L=labeled_L, test=test)
-		loss_unlabeled = self.loss_unlabeled(unlabeled_x, L=unlabeled_L, test=test)
+		loss_unlabeled = self.loss_unlabeled(unlabeled_x, n_labels, L=unlabeled_L, test=test)
 		loss = loss_labeled + loss_unlabeled
 
 		self.zero_grads()
@@ -419,8 +436,8 @@ class GaussianEncoder(chainer.Chain):
 		f = activations[self.activation_function]
 
 		if self.apply_batchnorm_to_input:
-			merged_input_mean = f(self.layer_mean_merge_x(self.batchnorm_mean_merge_x(x)) + self.layer_mean_merge_y(y))
-			merged_input_var = f(self.layer_var_merge_x(self.batchnorm_var_merge_x(x)) + self.layer_var_merge_y(y))
+			merged_input_mean = f(self.layer_mean_merge_x(self.batchnorm_mean_merge_x(x, test=test)) + self.layer_mean_merge_y(y))
+			merged_input_var = f(self.layer_var_merge_x(self.batchnorm_var_merge_x(x, test=test)) + self.layer_var_merge_y(y))
 		else:
 			merged_input_mean = f(self.layer_mean_merge_x(x) + self.layer_mean_merge_y(y))
 			merged_input_var = f(self.layer_var_merge_x(x) + self.layer_var_merge_y(y))
@@ -487,7 +504,7 @@ class BernoulliDecoder(SoftmaxEncoder):
 		f = activations[self.activation_function]
 
 		if self.apply_batchnorm_to_input:
-			merged_input = f(self.layer_merge_z(self.batchnorm_merge_z(z)) + self.layer_merge_y(y))
+			merged_input = f(self.layer_merge_z(self.batchnorm_merge_z(z, test=test)) + self.layer_merge_y(y))
 		else:
 			merged_input = f(self.layer_merge_z(z) + self.layer_merge_y(y))
 
