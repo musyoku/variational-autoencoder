@@ -61,12 +61,6 @@ class Conf():
 		if self.ndim_y != self.encoder_x_y_units[-1]:
 			raise Exception("ndim_x != encoder_x_y_units[-1]")
 
-		if self.ndim_z != self.encoder_xy_z_units[-1]:
-			raise Exception("ndim_x != encoder_xy_z_units[-1]")
-
-		if self.ndim_x != self.decoder_units[-1]:
-			raise Exception("ndim_x != decoder_units[-1]")
-
 def sum_sqnorm(arr):
 	sq_sum = collections.defaultdict(float)
 	for x in arr:
@@ -240,18 +234,18 @@ class BernoulliM2VAE(VAE):
 	def build(self, conf):
 		wscale = 1.0
 		encoder_xy_z_attributes = {}
-		encoder_xy_z_units = zip(conf.encoder_xy_z_units[:-1], conf.encoder_xy_z_units[1:])
+		encoder_xy_z_units = zip(conf.encoder_xy_z_units_except_for_input[:-1], conf.encoder_xy_z_units_except_for_input[1:])
 		for i, (n_in, n_out) in enumerate(encoder_xy_z_units):
 			encoder_xy_z_attributes["layer_mean_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
 			encoder_xy_z_attributes["batchnorm_mean_%i" % i] = L.BatchNormalization(n_in)
 			encoder_xy_z_attributes["layer_var_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
 			encoder_xy_z_attributes["batchnorm_var_%i" % i] = L.BatchNormalization(n_in)
-		encoder_xy_z_attributes["layer_mean_merge_x"] = L.Linear(conf.ndim_x, conf.encoder_xy_z_units[0])
+		encoder_xy_z_attributes["layer_mean_merge_x"] = L.Linear(conf.ndim_x, conf.encoder_xy_z_units_except_for_input[0])
 		encoder_xy_z_attributes["batchnorm_mean_merge_x"] = L.BatchNormalization(conf.ndim_x)
-		encoder_xy_z_attributes["layer_var_merge_x"] = L.Linear(conf.ndim_x, conf.encoder_xy_z_units[0])
+		encoder_xy_z_attributes["layer_var_merge_x"] = L.Linear(conf.ndim_x, conf.encoder_xy_z_units_except_for_input[0])
 		encoder_xy_z_attributes["batchnorm_var_merge_x"] = L.BatchNormalization(conf.ndim_x)
-		encoder_xy_z_attributes["layer_mean_merge_y"] = L.Linear(conf.ndim_y, conf.encoder_xy_z_units[0])
-		encoder_xy_z_attributes["layer_var_merge_y"] = L.Linear(conf.ndim_y, conf.encoder_xy_z_units[0])
+		encoder_xy_z_attributes["layer_mean_merge_y"] = L.Linear(conf.ndim_y, conf.encoder_xy_z_units_except_for_input[0])
+		encoder_xy_z_attributes["layer_var_merge_y"] = L.Linear(conf.ndim_y, conf.encoder_xy_z_units_except_for_input[0])
 		encoder_xy_z = GaussianEncoder(**encoder_xy_z_attributes)
 		encoder_xy_z.n_layers = len(encoder_xy_z_units)
 		encoder_xy_z.activation_function = conf.encoder_xy_z_activation_function
@@ -274,13 +268,13 @@ class BernoulliM2VAE(VAE):
 		encoder_x_y.apply_batchnorm_to_input = conf.encoder_x_y_apply_batchnorm_to_input
 
 		decoder_attributes = {}
-		decoder_units = zip(conf.decoder_units[:-1], conf.decoder_units[1:])
+		decoder_units = zip(conf.decoder_units_except_for_input[:-1], conf.decoder_units_except_for_input[1:])
 		for i, (n_in, n_out) in enumerate(decoder_units):
 			decoder_attributes["layer_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
 			decoder_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
-		decoder_attributes["layer_merge_z"] = L.Linear(conf.ndim_z, conf.decoder_units[0])
+		decoder_attributes["layer_merge_z"] = L.Linear(conf.ndim_z, conf.decoder_units_except_for_input[0])
 		decoder_attributes["batchnorm_merge_z"] = L.BatchNormalization(conf.ndim_z)
-		decoder_attributes["layer_merge_y"] = L.Linear(conf.ndim_y, conf.decoder_units[0])
+		decoder_attributes["layer_merge_y"] = L.Linear(conf.ndim_y, conf.decoder_units_except_for_input[0])
 		decoder = BernoulliDecoder(**decoder_attributes)
 		decoder.n_layers = len(decoder_units)
 		decoder.activation_function = conf.decoder_activation_function
@@ -479,8 +473,8 @@ class GaussianEncoder(chainer.Chain):
 			return F.gaussian(mean, ln_var)
 		return mean, ln_var
 
-# Network structure is same as the Encoder
-class GaussianDecoder(Encoder):
+# Network structure is same as the GaussianEncoder
+class GaussianDecoder(GaussianEncoder):
 
 	def __call__(self, z, y, test=False, output_pixel_value=False):
 		mean, ln_var = self.forward_one_step(z, y, test=test, sample_output=False)
