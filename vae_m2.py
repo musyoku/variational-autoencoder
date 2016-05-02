@@ -371,8 +371,9 @@ class BernoulliM2VAE(VAE):
 		self.update()
 
 		if self.gpu:
-			loss.to_cpu()
-		return loss.data
+			loss_labeled.to_cpu()
+			loss_unlabeled.to_cpu()
+		return loss_labeled.data, loss_unlabeled.data
 
 class SoftmaxEncoder(chainer.Chain):
 	def __init__(self, **layers):
