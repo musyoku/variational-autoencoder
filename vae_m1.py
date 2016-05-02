@@ -21,7 +21,7 @@ class Conf():
 		self.ndim_x = 28 * 28
 		self.ndim_z = 100
 
-		# ie.
+		# e.g.
 		# 784(input vector) -> 2000 -> 1000 -> 100(output vector)
 		# encoder_units = [784, 2000, 1000, 100]
 		self.encoder_units = [self.ndim_x, 512, 256, self.ndim_z]

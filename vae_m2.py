@@ -23,10 +23,10 @@ class Conf():
 		self.ndim_y = 10
 		self.ndim_z = 100
 
-		# ie.
-		# 784+10(input vector) -> 2000 -> 1000 -> 100(output vector)
-		# encoder_xy_z_units = [794, 2000, 1000, 100]
-		self.encoder_xy_z_units = [self.ndim_x + self.ndim_y, 512, 256, self.ndim_z]
+		# e.g.
+		# ndim_x + ndim_y(input) -> 2000 -> 1000 -> 100 (output)
+		# encoder_xy_z_units_except_for_input = [2000, 1000, 100]
+		self.encoder_xy_z_units_except_for_input = [512, 256, self.ndim_z]
 		self.encoder_xy_z_activation_function = "softplus"
 		self.encoder_xy_z_output_activation_function = None
 		self.encoder_xy_z_apply_dropout = False
@@ -40,7 +40,10 @@ class Conf():
 		self.encoder_x_y_apply_batchnorm = False
 		self.encoder_x_y_apply_batchnorm_to_input = False
 
-		self.decoder_units = [self.ndim_z + self.ndim_y, 256, 512, self.ndim_x]
+		# e.g.
+		# ndim_z + ndim_y(input) -> 2000 -> 1000 -> 100 (output)
+		# decoder_units_except_for_input = [2000, 1000, 100]
+		self.decoder_units_except_for_input = [256, 512, self.ndim_x]
 		self.decoder_activation_function = "softplus"
 		self.decoder_output_activation_function = None	# this will be ignored when decoder is BernoulliDecoder
 		self.decoder_apply_dropout = False
@@ -58,14 +61,8 @@ class Conf():
 		if self.ndim_y != self.encoder_x_y_units[-1]:
 			raise Exception("ndim_x != encoder_x_y_units[-1]")
 
-		if self.ndim_y + self.ndim_x != self.encoder_xy_z_units[0]:
-			raise Exception("ndim_y + ndim_x != encoder_xy_z_units[0]")
-
 		if self.ndim_z != self.encoder_xy_z_units[-1]:
 			raise Exception("ndim_x != encoder_xy_z_units[-1]")
-
-		if self.ndim_y + self.ndim_z != self.decoder_units[0]:
-			raise Exception("ndim_y + ndim_z != decoder_units[0]")
 
 		if self.ndim_x != self.decoder_units[-1]:
 			raise Exception("ndim_x != decoder_units[-1]")
@@ -249,6 +246,12 @@ class BernoulliM2VAE(VAE):
 			encoder_xy_z_attributes["batchnorm_mean_%i" % i] = L.BatchNormalization(n_in)
 			encoder_xy_z_attributes["layer_var_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
 			encoder_xy_z_attributes["batchnorm_var_%i" % i] = L.BatchNormalization(n_in)
+		encoder_xy_z_attributes["layer_mean_merge_x"] = L.Linear(conf.ndim_x, conf.encoder_xy_z_units[0])
+		encoder_xy_z_attributes["batchnorm_mean_merge_x"] = L.BatchNormalization(conf.ndim_x)
+		encoder_xy_z_attributes["layer_var_merge_x"] = L.Linear(conf.ndim_x, conf.encoder_xy_z_units[0])
+		encoder_xy_z_attributes["batchnorm_var_merge_x"] = L.BatchNormalization(conf.ndim_x)
+		encoder_xy_z_attributes["layer_mean_merge_y"] = L.Linear(conf.ndim_y, conf.encoder_xy_z_units[0])
+		encoder_xy_z_attributes["layer_var_merge_y"] = L.Linear(conf.ndim_y, conf.encoder_xy_z_units[0])
 		encoder_xy_z = GaussianEncoder(**encoder_xy_z_attributes)
 		encoder_xy_z.n_layers = len(encoder_xy_z_units)
 		encoder_xy_z.activation_function = conf.encoder_xy_z_activation_function
@@ -275,6 +278,9 @@ class BernoulliM2VAE(VAE):
 		for i, (n_in, n_out) in enumerate(decoder_units):
 			decoder_attributes["layer_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
 			decoder_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
+		decoder_attributes["layer_merge_z"] = L.Linear(conf.ndim_z, conf.decoder_units[0])
+		decoder_attributes["batchnorm_merge_z"] = L.BatchNormalization(conf.ndim_z)
+		decoder_attributes["layer_merge_y"] = L.Linear(conf.ndim_y, conf.decoder_units[0])
 		decoder = BernoulliDecoder(**decoder_attributes)
 		decoder.n_layers = len(decoder_units)
 		decoder.activation_function = conf.decoder_activation_function
@@ -416,21 +422,24 @@ class GaussianEncoder(chainer.Chain):
 	def xp(self):
 		return np if self._cpu else cuda.cupy
 
-	def forward_one_step(self, x, test=False, sample_output=True):
+	def forward_one_step(self, x, y, test=False, sample_output=True):
 		f = activations[self.activation_function]
 
-		chain_mean = [x]
-		chain_variance = [x]
+		if self.apply_batchnorm_to_input:
+			merged_input_mean = f(self.layer_mean_merge_x(self.batchnorm_mean_merge_x(x)) + self.layer_mean_merge_y(y))
+			merged_input_var = f(self.layer_var_merge_x(self.batchnorm_var_merge_x(x)) + self.layer_var_merge_y(y))
+		else:
+			merged_input_mean = f(self.layer_mean_merge_x(x) + self.layer_mean_merge_y(y))
+			merged_input_var = f(self.layer_var_merge_x(x) + self.layer_var_merge_y(y))
+
+		chain_mean = [merged_input_mean]
+		chain_variance = [merged_input_var]
 
 		# Hidden
 		for i in range(self.n_layers):
 			u = chain_mean[-1]
-			if i == 0:
-				if self.apply_batchnorm_to_input:
-					u = getattr(self, "batchnorm_mean_%d" % i)(u, test=test)
-			else:
-				if self.apply_batchnorm:
-					u = getattr(self, "batchnorm_mean_%d" % i)(u, test=test)
+			if self.apply_batchnorm:
+				u = getattr(self, "batchnorm_mean_%d" % i)(u, test=test)
 			u = getattr(self, "layer_mean_%i" % i)(u)
 			if i == self.n_layers - 1:
 				if self.output_activation_function is None:
@@ -444,12 +453,8 @@ class GaussianEncoder(chainer.Chain):
 			chain_mean.append(output)
 
 			u = chain_variance[-1]
-			if i == 0:
-				if self.apply_batchnorm_to_input:
-					u = getattr(self, "batchnorm_var_%i" % i)(u, test=test)
-			else:
-				if self.apply_batchnorm:
-					u = getattr(self, "batchnorm_var_%i" % i)(u, test=test)
+			if self.apply_batchnorm:
+				u = getattr(self, "batchnorm_var_%i" % i)(u, test=test)
 			u = getattr(self, "layer_var_%i" % i)(u)
 			if i == self.n_layers - 1:
 				if self.output_activation_function is None:
@@ -468,8 +473,8 @@ class GaussianEncoder(chainer.Chain):
 
 		return mean, ln_var
 
-	def __call__(self, x, test=False, sample_output=True):
-		mean, ln_var = self.forward_one_step(x, test=test, sample_output=sample_output)
+	def __call__(self, x, y, test=False, sample_output=True):
+		mean, ln_var = self.forward_one_step(x, y, test=test, sample_output=sample_output)
 		if sample_output:
 			return F.gaussian(mean, ln_var)
 		return mean, ln_var
@@ -477,46 +482,45 @@ class GaussianEncoder(chainer.Chain):
 # Network structure is same as the Encoder
 class GaussianDecoder(Encoder):
 
-	def __call__(self, x, test=False, output_pixel_value=False):
-		mean, ln_var = self.forward_one_step(x, test=test, sample_output=False)
+	def __call__(self, z, y, test=False, output_pixel_value=False):
+		mean, ln_var = self.forward_one_step(z, y, test=test, sample_output=False)
 		if output_pixel_value:
 			return F.gaussian(mean, ln_var)
 		return mean, ln_var
 
 class BernoulliDecoder(SoftmaxEncoder):
 
-	def __call__(self, x, test=False, output_pixel_value=False):
-		output = self.forward_one_step(x, test=test)
+	def forward_one_step(self, z, y, test):
+		f = activations[self.hidden_activation_function]
+
+		if self.apply_batchnorm_to_input:
+			merged_input = f(self.layer_merge_z(self.batchnorm_merge_z(z)) + self.layer_merge_y(y))
+		else:
+			merged_input = f(self.layer_merge_z(z) + self.layer_merge_y(y))
+
+		chain = [merged_input]
+
+		for i in range(self.n_layers):
+			u = chain[-1]
+			if self.apply_batchnorm:
+				u = getattr(self, "batchnorm_%d" % i)(u, test=test)
+			u = getattr(self, "layer_%i" % i)(u)
+			if i == self.n_layers - 1:
+				if self.output_activation_function is None:
+					output = u
+				else:
+					output = activations[self.output_activation_function](u)
+			else:
+				output = f(u)
+				if self.apply_dropout:
+					output = F.dropout(output, train=not test)
+			chain.append(output)
+
+		return chain[-1]
+
+	def __call__(self, z, y, test=False, output_pixel_value=False):
+		output = self.forward_one_step(z, y, test=test)
 		# Pixel value must be between -1 to 1
 		if output_pixel_value:
 			return (F.sigmoid(output) - 0.5) * 2.0
 		return output
-
-class Concat(function.Function):
-	def check_type_forward(self, in_types):
-		n_in = in_types.size()
-		type_check.expect(n_in == 2)
-		a_type, b_type = in_types
-
-		type_check.expect(
-			a_type.dtype == np.float32,
-			b_type.dtype == np.float32,
-			a_type.ndim == 2,
-			b_type.ndim == 2,
-		)
-
-	def forward(self, inputs):
-		xp = cuda.get_array_module(inputs[0])
-		v_a, v_b = inputs
-		n_batch = v_a.shape[0]
-		output = xp.empty((n_batch, v_a.shape[1] + v_b.shape[1]), dtype=xp.float32)
-		output[:,:v_a.shape[1]] = v_a
-		output[:,v_a.shape[1]:] = v_b
-		return output,
-
-	def backward(self, inputs, grad_outputs):
-		v_a, v_b = inputs
-		return grad_outputs[0][:,:v_a.shape[1]], grad_outputs[0][:,v_a.shape[1]:]
-
-def concat_variables(v_a, v_b):
-	return Concat()(v_a, v_b)
