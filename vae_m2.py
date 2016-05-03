@@ -327,20 +327,20 @@ class BernoulliM2VAE(VAE):
 
 	def loss_unlabeled(self, unlabeled_x, n_labels, L=1, test=False):
 		# Math:
-		# Loss = -E_{q(y|x)}[-Loss(x, y)] - H(q(y|x))
+		# Loss = -E_{q(y|x)}[-loss_labeled(x, y)] - H(q(y|x))
 		# where H(p) is the Entropy of the p
 		loss = 0
 		batchsize = unlabeled_x.data.shape[0]
 
-		# Approximation of -E_{q(y|x)}[-Loss(x, y)]
+		# Approximation of -E_{q(y|x)}[-loss_labeled(x, y)]
 		for l in xrange(L):
 			y_distribution = self.encode_x_y(unlabeled_x, test=test)
 			if False:
-				# Compute -E_{q(y|x)}[-Loss(x, y)] for all y
+				# Compute -E_{q(y|x)}[-loss_labeled(x, y)] for all y instead of sampling
 				# Under development
 				pass
 			else:
-				# -E_{q(y|x)}[-Loss(x, y)]
+				# -E_{q(y|x)}[-loss_labeled(x, y)]
 				y_distribution = y_distribution.data
 				xp = self.xp
 				if self.gpu:
@@ -349,9 +349,6 @@ class BernoulliM2VAE(VAE):
 				for b in xrange(batchsize):
 					label_id = np.random.choice(np.arange(n_labels), p=y_distribution[b])
 					sampled_y[b, label_id] = 1
-					print label_id
-					print y_distribution[b]
-
 				sampled_y = Variable(sampled_y)
 				if self.gpu:
 					sampled_y.to_gpu()
@@ -360,9 +357,9 @@ class BernoulliM2VAE(VAE):
 
 		# -H(q(y|x))
 		# Math:
-		# sum_{y}q(y|x)logq(y|x)
-		y_extectation = self.encoder_x_y(unlabeled_x, test=test, softmax=True)
-		entropy = -F.sum(y_extectation * F.log(y_extectation))
+		# -(-sum_{y}q(y|x)logq(y|x))
+		y_expectation = self.encoder_x_y(unlabeled_x, test=test, softmax=True)
+		entropy = F.sum(y_expectation * F.log(y_expectation))
 		loss += entropy / batchsize
 		return loss
 
