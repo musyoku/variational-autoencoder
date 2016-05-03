@@ -9,4 +9,6 @@ conf.encoder_xy_z_apply_batchnorm_to_input = True
 conf.encoder_x_y_apply_batchnorm_to_input = True
 conf.decoder_apply_batchnorm_to_input = True
 conf.encoder_x_y_apply_dropout = True
+conf.encoder_xy_z_apply_dropout = True
+conf.decoder_apply_dropout = True
 vae = BernoulliM2VAE(conf, name="m2")

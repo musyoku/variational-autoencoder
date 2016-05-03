@@ -297,17 +297,21 @@ class BernoulliM2VAE(VAE):
 	def encode_x_y(self, x, test=False):
 		return self.encoder_x_y(x, test=test)
 
-	def sample_x_label(self, x, test=False):
+	def sample_x_label(self, x, argmax=True, test=False):
 		batchsize = x.data.shape[0]
 		y_distribution = self.encoder_x_y(x, test=test, softmax=True).data
 		if self.gpu:
 			y_distribution = cuda.to_cpu(y_distribution)
 		n_labels = y_distribution.shape[1]
-		sampled_label = np.zeros((batchsize,), dtype=np.int32)
-		labels = np.arange(n_labels)
-		for b in xrange(batchsize):
-			label_id = np.random.choice(labels, p=y_distribution[b])
-			sampled_label[b] = 1
+		if argmax:
+			sampled_label = np.argmax(y_distribution, axis=1)
+		else:
+			sampled_label = np.zeros((batchsize,), dtype=np.int32)
+			labels = np.arange(n_labels)
+			for b in xrange(batchsize):
+				label_id = np.random.choice(labels, p=y_distribution[b])
+				sampled_label[b] = 1
+			
 		return sampled_label
 
 	def decode_yz_x(self, z, y, test=False, output_pixel_value=False):
@@ -358,9 +362,9 @@ class BernoulliM2VAE(VAE):
 				if self.gpu:
 					y_distribution = cuda.to_cpu(y_distribution)
 				sampled_y = np.zeros((batchsize, n_labels), dtype=np.float32)
+				print y_distribution[0]
 				for b in xrange(batchsize):
 					label_id = np.random.choice(np.arange(n_labels), p=y_distribution[b])
-					print y_distribution[b]
 					sampled_y[b, label_id] = 1
 				sampled_y = Variable(sampled_y)
 				if self.gpu:

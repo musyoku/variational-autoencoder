@@ -8,7 +8,7 @@ from args import args
 from model import conf, vae
 
 vae.load(args.model_dir)
-dataset, labels = util.load_labeled_images(args.image_dir)
+dataset, labels = util.load_labeled_images(args.test_image_dir)
 
 def validate_x_label():
 	num_validation = 1000
