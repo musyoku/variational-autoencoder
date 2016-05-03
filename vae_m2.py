@@ -363,9 +363,14 @@ class BernoulliM2VAE(VAE):
 					y_distribution = cuda.to_cpu(y_distribution)
 				sampled_y = np.zeros((batchsize, n_labels), dtype=np.float32)
 				print y_distribution[0]
-				for b in xrange(batchsize):
-					label_id = np.random.choice(np.arange(n_labels), p=y_distribution[b])
-					sampled_y[b, label_id] = 1
+				if False:
+					for b in xrange(batchsize):
+						label_id = np.random.choice(np.arange(n_labels), p=y_distribution[b])
+						sampled_y[b, label_id] = 1
+				else:
+					args = np.argmax(y_distribution, axis=1)
+					for b in xrange(batchsize):
+						sampled_y[b, args[b]] = 1
 				sampled_y = Variable(sampled_y)
 				if self.gpu:
 					sampled_y.to_gpu()

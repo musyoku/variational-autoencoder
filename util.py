@@ -171,7 +171,7 @@ def visualize_labeled_z():
 	classes = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
 	recs = []
 	for i in range(0, len(colors)):
-	    recs.append(mpatches.Rectangle((0, 0), 1, 1, fc=colors[i]))
+		recs.append(mpatches.Rectangle((0, 0), 1, 1, fc=colors[i]))
 
 	ax = pylab.subplot(111)
 	box = ax.get_position()
