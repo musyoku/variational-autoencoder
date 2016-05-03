@@ -46,8 +46,9 @@ def create_semisupervised(dataset, labels, max_labeled_data=100):
 	y_labeled = []
 	labeled_indices = np.random.choice(np.arange(len(dataset), dtype=np.int32), size=max_labeled_data, replace=False)
 	for i in xrange(max_labeled_data):
-		x_labeled.append(dataset[i])
-		y_labeled.append(labels[i])
+		index = labeled_indices[i]
+		x_labeled.append(dataset[index])
+		y_labeled.append(labels[index])
 	return x_labeled, y_labeled, dataset
 
 def sample_x_variable(batchsize, ndim_x, dataset, sequential=False, use_gpu=True):

@@ -360,6 +360,7 @@ class BernoulliM2VAE(VAE):
 				sampled_y = np.zeros((batchsize, n_labels), dtype=np.float32)
 				for b in xrange(batchsize):
 					label_id = np.random.choice(np.arange(n_labels), p=y_distribution[b])
+					print y_distribution[b]
 					sampled_y[b, label_id] = 1
 				sampled_y = Variable(sampled_y)
 				if self.gpu:
@@ -371,7 +372,7 @@ class BernoulliM2VAE(VAE):
 		# Math:
 		# -(-sum_{y}q(y|x)logq(y|x))
 		y_expectation = self.encoder_x_y(unlabeled_x, test=test, softmax=True)
-		entropy = F.sum(y_expectation * F.log(y_expectation))
+		entropy = F.sum(y_expectation * F.log(y_expectation + 1e-6))
 		loss += entropy / batchsize
 		return loss
 
@@ -388,7 +389,7 @@ class BernoulliM2VAE(VAE):
 		# one-hot label vector can be regarded as a mask
 		mask = labeled_y.data.astype(xp.float32)
 		mask = Variable(mask)
-		loss += alpha * F.sum(mask * -F.log(y_distribution)) / batchsize
+		loss += alpha * F.sum(mask * -F.log(y_distribution + 1e-6)) / batchsize
 
 		self.zero_grads()
 		loss.backward()

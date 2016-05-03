@@ -17,7 +17,9 @@ batchsize = 128
 # Create labeled/unlabeled split in training set
 max_labbeled_data = 100
 labeled_dataset, labels, unlabeled_dataset = util.create_semisupervised(dataset, labels, max_labbeled_data)
-alpha = 0.1 * len(dataset) / len(unlabeled_dataset)
+print "labels:", labels
+alpha = 0.1 * len(dataset) / conf.ndim_y / len(labeled_dataset)
+print "alpha:", alpha
 print "dataset::", "labeled:", len(labeled_dataset), "unlabeled:", len(unlabeled_dataset)
 
 def train_supervised():
