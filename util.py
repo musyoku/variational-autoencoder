@@ -7,12 +7,12 @@ from PIL import Image
 from chainer import cuda, Variable, function
 from chainer.utils import type_check
 
-def load_images(args, convert_to_grayscale=True):
+def load_images(image_dir, convert_to_grayscale=True):
 	dataset = []
-	fs = os.listdir(args.image_dir)
+	fs = os.listdir(image_dir)
 	print "loading", len(fs), "images..."
 	for fn in fs:
-		f = open("%s/%s" % (args.image_dir, fn), "rb")
+		f = open("%s/%s" % (image_dir, fn), "rb")
 		if convert_to_grayscale:
 			img = np.asarray(Image.open(StringIO(f.read())).convert("L"), dtype=np.float32) / 255.0
 		else:
@@ -22,15 +22,15 @@ def load_images(args, convert_to_grayscale=True):
 		f.close()
 	return dataset
 
-def load_labeled_images(args, convert_to_grayscale=True):
+def load_labeled_images(image_dir, convert_to_grayscale=True):
 	dataset = []
 	labels = []
-	fs = os.listdir(args.image_dir)
+	fs = os.listdir(image_dir)
 	print "loading", len(fs), "images..."
 	for fn in fs:
 		m = re.match("(.)_.+", fn)
 		label = int(m.group(1))
-		f = open("%s/%s" % (args.image_dir, fn), "rb")
+		f = open("%s/%s" % (image_dir, fn), "rb")
 		if convert_to_grayscale:
 			img = np.asarray(Image.open(StringIO(f.read())).convert("L"), dtype=np.float32) / 255.0
 		else:
@@ -63,16 +63,22 @@ def sample_x_variable(batchsize, ndim_x, dataset, sequential=False, use_gpu=True
 		x_batch.to_gpu()
 	return x_batch
 
-def sample_x_and_y_variables(batchsize, ndim_x, ndim_y, dataset, labels, sequential=False, use_gpu=True):
+def sample_x_and_y_variables(batchsize, ndim_x, ndim_y, dataset, labels, one_hot_label=True, sequential=False, use_gpu=True):
 	x_batch = np.zeros((batchsize, ndim_x), dtype=np.float32)
-	y_batch = np.zeros((batchsize, ndim_y), dtype=np.float32)
+	if one_hot_label:
+		y_batch = np.zeros((batchsize, ndim_y), dtype=np.float32)
+	else:
+		y_batch = np.zeros((batchsize,), dtype=np.int32)
 	for j in range(batchsize):
 		data_index = np.random.randint(len(dataset))
 		if sequential:
 			data_index = j
 		img = dataset[data_index]
 		x_batch[j] = img.reshape((ndim_x,))
-		y_batch[j, labels[data_index]] = 1
+		if one_hot_label:
+			y_batch[j, labels[data_index]] = 1
+		else:
+			y_batch[j] = labels[data_index]
 	x_batch = Variable(x_batch)
 	y_batch = Variable(y_batch)
 	if use_gpu:
@@ -175,32 +181,3 @@ def visualize_labeled_z():
 	pylab.xlabel("z1")
 	pylab.ylabel("z2")
 	pylab.savefig("%s/labeled_z.png" % args.visualization_dir)
-
-class Concat(function.Function):
-	def check_type_forward(self, in_types):
-		n_in = in_types.size()
-		type_check.expect(n_in == 2)
-		x_type, label_type = in_types
-
-		type_check.expect(
-			x_type.dtype == np.float32,
-			label_type.dtype == np.float32,
-			x_type.ndim == 2,
-			label_type.ndim == 2,
-		)
-
-	def forward(self, inputs):
-		xp = cuda.get_array_module(inputs[0])
-		x, label = inputs
-		n_batch = x.shape[0]
-		output = xp.empty((n_batch, x.shape[1] + label.shape[1]), dtype=xp.float32)
-		output[:,:x.shape[1]] = x
-		output[:,x.shape[1]:] = label
-		return output,
-
-	def backward(self, inputs, grad_outputs):
-		x, label = inputs
-		return grad_outputs[0][:,:x.shape[1]], grad_outputs[0][:,x.shape[1]:]
-
-def append_label(x, label):
-	return Concat()(x, label)

@@ -297,9 +297,18 @@ class BernoulliM2VAE(VAE):
 	def encode_x_y(self, x, test=False):
 		return self.encoder_x_y(x, test=test)
 
-	def sample_x_y(self, x, test=False):
-		y_extectation = self.encoder_x_y(x, test=test, softmax=True)
-		print y_extectation.data
+	def sample_x_label(self, x, test=False):
+		batchsize = x.data.shape[0]
+		y_distribution = self.encoder_x_y(x, test=test, softmax=True).data
+		if self.gpu:
+			y_distribution = cuda.to_cpu(y_distribution)
+		n_labels = y_distribution.shape[1]
+		sampled_label = np.zeros((batchsize,), dtype=np.int32)
+		labels = np.arange(n_labels)
+		for b in xrange(batchsize):
+			label_id = np.random.choice(labels, p=y_distribution[b])
+			sampled_label[b] = 1
+		return sampled_label
 
 	def decode_yz_x(self, z, y, test=False, output_pixel_value=False):
 		return self.decoder(z, y, test=test, output_pixel_value=output_pixel_value)
@@ -308,6 +317,7 @@ class BernoulliM2VAE(VAE):
 		# Math:
 		# Loss = -E_{q(z|x,y)}[logp(x|y,z) + logp(y)] + KL(q(z|x,y)||p(z))
 		loss = 0
+		batchsize = x.data.shape[0]
 		z_mean, z_ln_var = self.encoder_xy_z(x, y, test=test, sample_output=False)
 		# -E_{q(z|x,y)}[logp(x|y,z) + logp(y)]
 		for l in xrange(L):
@@ -319,13 +329,14 @@ class BernoulliM2VAE(VAE):
 			# logp(y) = log(1/num_labels)
 			reconstuction_loss = F.bernoulli_nll((x + 1.0) / 2.0, x_expectation) - math.log(1.0 / y.data.shape[1])
 			loss += reconstuction_loss
-		loss /= L * x.data.shape[0]
+		loss /= L * batchsize
 		# KL(q(z|x,y)||p(z))
 		kld_regularization_loss = F.gaussian_kl_divergence(z_mean, z_ln_var)
-		loss += kld_regularization_loss / x.data.shape[0]
+		loss += kld_regularization_loss / batchsize
+
 		return loss
 
-	def loss_unlabeled(self, unlabeled_x, n_labels, L=1, test=False):
+	def loss_unlabeled(self, unlabeled_x, L=1, test=False):
 		# Math:
 		# Loss = -E_{q(y|x)}[-loss_labeled(x, y)] - H(q(y|x))
 		# where H(p) is the Entropy of the p
@@ -335,6 +346,7 @@ class BernoulliM2VAE(VAE):
 		# Approximation of -E_{q(y|x)}[-loss_labeled(x, y)]
 		for l in xrange(L):
 			y_distribution = self.encode_x_y(unlabeled_x, test=test)
+			n_labels = y_distribution.data.shape[1]
 			if False:
 				# Compute -E_{q(y|x)}[-loss_labeled(x, y)] for all y instead of sampling
 				# Under development
@@ -363,10 +375,20 @@ class BernoulliM2VAE(VAE):
 		loss += entropy / batchsize
 		return loss
 
-	def train(self, labeled_x, labeled_y, unlabeled_x, n_labels, labeled_L=1, unlabeled_L=1, test=False):
+	def train(self, labeled_x, labeled_y, unlabeled_x, alpha, labeled_L=1, unlabeled_L=1, test=False):
 		loss_labeled = self.loss_labeled(labeled_x, labeled_y, L=labeled_L, test=test)
-		loss_unlabeled = self.loss_unlabeled(unlabeled_x, n_labels, L=unlabeled_L, test=test)
+		loss_unlabeled = self.loss_unlabeled(unlabeled_x, L=unlabeled_L, test=test)
 		loss = loss_labeled + loss_unlabeled
+
+		# Extended
+		y_distribution = self.encode_x_y(labeled_x, test=test)
+		batchsize = labeled_x.data.shape[0]
+		n_labels = y_distribution.data.shape[1]
+		xp = self.xp
+		# one-hot label vector can be regarded as a mask
+		mask = labeled_y.data.astype(xp.float32)
+		mask = Variable(mask)
+		loss += alpha * F.sum(mask * -F.log(y_distribution)) / batchsize
 
 		self.zero_grads()
 		loss.backward()
@@ -377,8 +399,8 @@ class BernoulliM2VAE(VAE):
 			loss_unlabeled.to_cpu()
 		return loss_labeled.data, loss_unlabeled.data
 
-	def train_supervised(self, labeled_x, labeled_y, L=1, test=False):
-		loss = self.loss_labeled(labeled_x, labeled_y, L=L, test=test)
+	def train_supervised(self, labeled_x, labeled_y, alpha, L=1, test=False):
+		loss = self.loss_labeled(labeled_x, labeled_y, alpha, L=L, test=test)
 
 		self.zero_grads()
 		loss.backward()
