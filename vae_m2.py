@@ -92,15 +92,15 @@ class VAE():
 
 		self.optimizer_encoder_xy_z = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_encoder_xy_z.setup(self.encoder_xy_z)
-		self.optimizer_encoder_xy_z.add_hook(GradientClipping(10.0))
+		# self.optimizer_encoder_xy_z.add_hook(GradientClipping(10.0))
 
 		self.optimizer_encoder_x_y = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_encoder_x_y.setup(self.encoder_x_y)
-		self.optimizer_encoder_x_y.add_hook(GradientClipping(10.0))
+		# self.optimizer_encoder_x_y.add_hook(GradientClipping(10.0))
 
 		self.optimizer_decoder = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_decoder.setup(self.decoder)
-		self.optimizer_decoder.add_hook(GradientClipping(10.0))
+		# self.optimizer_decoder.add_hook(GradientClipping(10.0))
 
 	def build(self, conf):
 		raise Exception()
@@ -591,3 +591,30 @@ class BernoulliDecoder(SoftmaxEncoder):
 		if output_pixel_value:
 			return (F.sigmoid(output) - 0.5) * 2.0
 		return output
+
+class LabelSampler(function.Function):
+	def check_type_forward(self, in_types):
+		n_in = in_types.size()
+		type_check.expect(n_in == 2)
+		context_type, weight_type = in_types
+
+		type_check.expect(
+			context_type.dtype == np.float32,
+			weight_type.dtype == np.float32,
+			context_type.ndim == 2,
+			weight_type.ndim == 2,
+		)
+
+	def forward(self, inputs):
+		xp = cuda.get_array_module(inputs[0])
+		context, weight = inputs
+		output = context * weight
+		return output,
+
+	def backward(self, inputs, grad_outputs):
+		xp = cuda.get_array_module(inputs[0])
+		context, weight = inputs
+		return grad_outputs[0] * weight, xp.sum(grad_outputs[0] * context, axis=1).reshape(-1, 1)
+
+def sample_y(context, weight):
+	return LabelSampler()(context, weight)
