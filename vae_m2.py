@@ -2,7 +2,8 @@
 import math
 import numpy as np
 import chainer, os, collections, six
-from chainer import cuda, Variable, optimizers, serializers
+from chainer import cuda, Variable, optimizers, serializers, function
+from chainer.utils import type_check
 from chainer import functions as F
 from chainer import links as L
 
@@ -363,7 +364,7 @@ class BernoulliM2VAE(VAE):
 					y_distribution = cuda.to_cpu(y_distribution)
 				sampled_y = np.zeros((batchsize, n_labels), dtype=np.float32)
 				print y_distribution[0]
-				if False:
+				if True:
 					for b in xrange(batchsize):
 						label_id = np.random.choice(np.arange(n_labels), p=y_distribution[b])
 						sampled_y[b, label_id] = 1
@@ -595,26 +596,37 @@ class BernoulliDecoder(SoftmaxEncoder):
 class LabelSampler(function.Function):
 	def check_type_forward(self, in_types):
 		n_in = in_types.size()
-		type_check.expect(n_in == 2)
-		context_type, weight_type = in_types
+		type_check.expect(n_in == 1)
+		y_type, = in_types
 
 		type_check.expect(
-			context_type.dtype == np.float32,
-			weight_type.dtype == np.float32,
-			context_type.ndim == 2,
-			weight_type.ndim == 2,
+			y_type.dtype == np.float32,
+			y_type.ndim == 2,
 		)
 
 	def forward(self, inputs):
 		xp = cuda.get_array_module(inputs[0])
-		context, weight = inputs
-		output = context * weight
-		return output,
+		y_distribution, = inputs
+		batchsize = y_distribution.shape[0]
+		n_labels = y_distribution.shape[1]
+		sampled_y = xp.zeros((batchsize, n_labels), dtype=xp.float32)
+		if True:
+			if xp is cuda.cupy:
+				y_distribution = cuda.to_cpu(y_distribution)
+			for b in xrange(batchsize):
+				label_id = np.random.choice(np.arange(n_labels), p=y_distribution[b])
+				sampled_y[b, label_id] = 1
+		else:
+			args = np.argmax(y_distribution, axis=1)
+			for b in xrange(batchsize):
+				sampled_y[b, args[b]] = 1
+		self.prev_output = sampled_y
+		return sampled_y,
 
 	def backward(self, inputs, grad_outputs):
 		xp = cuda.get_array_module(inputs[0])
-		context, weight = inputs
-		return grad_outputs[0] * weight, xp.sum(grad_outputs[0] * context, axis=1).reshape(-1, 1)
+		y_distribution, = inputs
+		return grad_outputs[0] * self.prev_output * y_distribution,
 
-def sample_y(context, weight):
-	return LabelSampler()(context, weight)
+def sample_y(y_distribution):
+	return LabelSampler()(y_distribution)
