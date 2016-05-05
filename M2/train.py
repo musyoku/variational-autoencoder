@@ -46,20 +46,22 @@ def train_semisupervised():
 	for epoch in xrange(max_epoch):
 		sum_loss_labeled = 0
 		sum_loss_unlabeled = 0
+		sum_loss_extended = 0
 		epoch_time = time.time()
 		for t in xrange(num_trains_per_epoch):
 			x_labeled, y_labeled = util.sample_x_and_y_variables(batchsize, conf.ndim_x, conf.ndim_y, labeled_dataset, labels, use_gpu=conf.use_gpu)
 			x_unlabeled = util.sample_x_variable(batchsize, conf.ndim_x, unlabeled_dataset, use_gpu=conf.use_gpu)
-			loss_labeled, loss_unlabeled = vae.train(x_labeled, y_labeled, x_unlabeled, alpha)
+			loss_labeled, loss_unlabeled, loss_extended = vae.train(x_labeled, y_labeled, x_unlabeled, alpha)
 			sum_loss_labeled += loss_labeled
 			sum_loss_unlabeled += loss_unlabeled
+			sum_loss_extended += loss_extended
 			if t % 100 == 0:
 				sys.stdout.write("\rTraining in progress...({:d} / {:d})".format(t, num_trains_per_epoch))
 				sys.stdout.flush()
 		epoch_time = time.time() - epoch_time
 		total_time += epoch_time
 		sys.stdout.write("\r")
-		print "epoch:", epoch, "loss::", "labeled:", sum_loss_labeled / num_trains_per_epoch, "unlabeled:", sum_loss_unlabeled / num_trains_per_epoch, "time:", "{:f}".format(epoch_time / 60), "min", "total", "{:f}".format(total_time / 60), "min"
+		print "epoch:", epoch, "loss::", "labeled:", sum_loss_labeled / num_trains_per_epoch, "unlabeled:", sum_loss_unlabeled / num_trains_per_epoch, "extended:", sum_loss_extended / num_trains_per_epoch, "time:", "{:f}".format(epoch_time / 60), "min", "total", "{:f}".format(total_time / 60), "min"
 		sys.stdout.flush()
 		vae.save(args.model_dir)
 
