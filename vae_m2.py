@@ -168,31 +168,59 @@ class VAE():
 class GaussianM2VAE(VAE):
 
 	def build(self, conf):
-		wscale = 0.1
+		wscale = 1.0
 		encoder_xy_z_attributes = {}
 		encoder_xy_z_units = zip(conf.encoder_xy_z_hidden_units[:-1], conf.encoder_xy_z_hidden_units[1:])
-		encoder_xy_z_units += [conf.encoder_xy_z_hidden_units[-1], conf.ndim_z]
+		encoder_xy_z_units += [(conf.encoder_x_y_hidden_units[-1], conf.ndim_z)]
 		for i, (n_in, n_out) in enumerate(encoder_xy_z_units):
 			encoder_xy_z_attributes["layer_mean_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
 			encoder_xy_z_attributes["batchnorm_mean_%i" % i] = L.BatchNormalization(n_in)
 			encoder_xy_z_attributes["layer_var_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
 			encoder_xy_z_attributes["batchnorm_var_%i" % i] = L.BatchNormalization(n_in)
-		encoder = GaussianEncoder(**encoder_xy_z_attributes)
-		encoder.n_layers = len(encoder_xy_z_units)
-		encoder.activation_function = conf.encoder_xy_z_activation_function
-		encoder.output_activation_function = conf.encoder_xy_z_output_activation_function
-		encoder.apply_dropout = conf.encoder_xy_z_apply_dropout
-		encoder.apply_batchnorm = conf.encoder_xy_z_apply_batchnorm
-		encoder.apply_batchnorm_to_input = conf.encoder_xy_z_apply_batchnorm_to_input
+		encoder_xy_z_attributes["layer_mean_merge_x"] = L.Linear(conf.ndim_x, conf.encoder_xy_z_hidden_units[0])
+		encoder_xy_z_attributes["layer_mean_merge_y"] = L.Linear(conf.ndim_y, conf.encoder_xy_z_hidden_units[0])
+		encoder_xy_z_attributes["batchnorm_mean_merge_x"] = L.BatchNormalization(conf.ndim_x)
+		encoder_xy_z_attributes["layer_var_merge_x"] = L.Linear(conf.ndim_x, conf.encoder_xy_z_hidden_units[0])
+		encoder_xy_z_attributes["layer_var_merge_y"] = L.Linear(conf.ndim_y, conf.encoder_xy_z_hidden_units[0])
+		encoder_xy_z_attributes["batchnorm_var_merge_x"] = L.BatchNormalization(conf.ndim_x)
+		encoder_xy_z = GaussianEncoder(**encoder_xy_z_attributes)
+		encoder_xy_z.n_layers = len(encoder_xy_z_units)
+		encoder_xy_z.activation_function = conf.encoder_xy_z_activation_function
+		encoder_xy_z.output_activation_function = conf.encoder_xy_z_output_activation_function
+		encoder_xy_z.apply_dropout = conf.encoder_xy_z_apply_dropout
+		encoder_xy_z.apply_batchnorm = conf.encoder_xy_z_apply_batchnorm
+		encoder_xy_z.apply_batchnorm_to_input = conf.encoder_xy_z_apply_batchnorm_to_input
+
+		encoder_x_y_attributes = {}
+		encoder_x_y_units = [(conf.ndim_x, conf.encoder_x_y_hidden_units[0])]
+		encoder_x_y_units += zip(conf.encoder_x_y_hidden_units[:-1], conf.encoder_x_y_hidden_units[1:])
+		encoder_x_y_units += [(conf.encoder_x_y_hidden_units[-1], conf.ndim_y)]
+		for i, (n_in, n_out) in enumerate(encoder_x_y_units):
+			encoder_x_y_attributes["layer_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
+			encoder_x_y_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
+		encoder_x_y = SoftmaxEncoder(**encoder_x_y_attributes)
+		encoder_x_y.n_layers = len(encoder_x_y_units)
+		encoder_x_y.activation_function = conf.encoder_x_y_activation_function
+		encoder_x_y.output_activation_function = conf.encoder_x_y_output_activation_function
+		encoder_x_y.apply_dropout = conf.encoder_x_y_apply_dropout
+		encoder_x_y.apply_batchnorm = conf.encoder_x_y_apply_batchnorm
+		encoder_x_y.apply_batchnorm_to_input = conf.encoder_x_y_apply_batchnorm_to_input
 
 		decoder_attributes = {}
-		decoder_units = zip(conf.decoder_units[:-1], conf.decoder_units[1:])
-		for i, (n_in, n_out) in enumerate(decoder_units):
+		decoder_units = zip(conf.decoder_hidden_units[:-1], conf.decoder_hidden_units[1:])
+		decoder_units += [(conf.decoder_hidden_units[-1], conf.ndim_x)]
+		for i, (n_in, n_out) in enumerate(encoder_xy_z_units):
 			decoder_attributes["layer_mean_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
 			decoder_attributes["batchnorm_mean_%i" % i] = L.BatchNormalization(n_in)
 			decoder_attributes["layer_var_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
 			decoder_attributes["batchnorm_var_%i" % i] = L.BatchNormalization(n_in)
-		decoder = GaussianDecoder(**decoder_attributes)
+		decoder_attributes["layer_mean_merge_z"] = L.Linear(conf.ndim_x, conf.decoder_xy_z_hidden_units[0])
+		decoder_attributes["layer_mean_merge_y"] = L.Linear(conf.ndim_y, conf.decoder_xy_z_hidden_units[0])
+		decoder_attributes["batchnorm_mean_merge_z"] = L.BatchNormalization(conf.ndim_x)
+		decoder_attributes["layer_var_merge_z"] = L.Linear(conf.ndim_x, conf.decoder_xy_z_hidden_units[0])
+		decoder_attributes["layer_var_merge_y"] = L.Linear(conf.ndim_y, conf.decoder_xy_z_hidden_units[0])
+		decoder_attributes["batchnorm_var_merge_z"] = L.BatchNormalization(conf.ndim_x)
+		decoder_xy_z = GaussianEncoder(**decoder_attributes)
 		decoder.n_layers = len(decoder_units)
 		decoder.activation_function = conf.decoder_activation_function
 		decoder.output_activation_function = conf.decoder_output_activation_function
@@ -201,9 +229,10 @@ class GaussianM2VAE(VAE):
 		decoder.apply_batchnorm_to_input = conf.decoder_apply_batchnorm_to_input
 
 		if conf.use_gpu:
-			encoder.to_gpu()
+			encoder_xy_z.to_gpu()
+			encoder_x_y.to_gpu()
 			decoder.to_gpu()
-		return encoder, decoder
+		return encoder_xy_z, encoder_x_y, decoder
 
 	def train(self, x, L=1, test=False):
 		z_mean, z_ln_var = self.encoder(x, test=test, sample_output=False)
