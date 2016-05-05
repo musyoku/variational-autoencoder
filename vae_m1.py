@@ -22,16 +22,16 @@ class Conf():
 		self.ndim_z = 100
 
 		# e.g.
-		# 784(input vector) -> 2000 -> 1000 -> 100(output vector)
-		# encoder_units = [784, 2000, 1000, 100]
-		self.encoder_units = [self.ndim_x, 512, 256, self.ndim_z]
+		# ndim_x (input) -> 2000 -> 1000 -> 100 (output)
+		# encoder_units = [2000, 1000]
+		self.encoder_hidden_units = [512, 256]
 		self.encoder_activation_function = "softplus"
 		self.encoder_output_activation_function = None
 		self.encoder_apply_dropout = False
 		self.encoder_apply_batchnorm = False
 		self.encoder_apply_batchnorm_to_input = False
 
-		self.decoder_units = [self.ndim_z, 256, 512, self.ndim_x]
+		self.decoder_hidden_units = [256, 512]
 		self.decoder_activation_function = "softplus"
 		self.decoder_output_activation_function = None	# this will be ignored when decoder is BernoulliDecoder
 		self.decoder_apply_dropout = False
@@ -43,11 +43,7 @@ class Conf():
 		self.gradient_momentum = 0.95
 
 	def check(self):
-		if self.ndim_x != self.encoder_units[0]:
-			raise Exception("ndim_x != encoder_units[0]")
-			
-		if self.ndim_z != self.encoder_units[-1]:
-			raise Exception("ndim_x != encoder_units[-1]")
+		pass
 
 def sum_sqnorm(arr):
 	sq_sum = collections.defaultdict(float)
@@ -154,7 +150,9 @@ class GaussianM1VAE(VAE):
 	def build(self, conf):
 		wscale = 0.1
 		encoder_attributes = {}
-		encoder_units = zip(conf.encoder_units[:-1], conf.encoder_units[1:])
+		encoder_units = [(conf.ndim_x, conf.encoder_units[0])]
+		encoder_units += zip(conf.encoder_units[:-1], conf.encoder_units[1:])
+		encoder_units += [(conf.encoder_units[-1], conf.ndim_z)]
 		for i, (n_in, n_out) in enumerate(encoder_units):
 			encoder_attributes["layer_mean_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
 			encoder_attributes["batchnorm_mean_%i" % i] = L.BatchNormalization(n_in)
@@ -169,7 +167,9 @@ class GaussianM1VAE(VAE):
 		encoder.apply_batchnorm_to_input = conf.encoder_apply_batchnorm_to_input
 
 		decoder_attributes = {}
-		decoder_units = zip(conf.decoder_units[:-1], conf.decoder_units[1:])
+		decoder_units = [(conf.ndim_x, conf.decoder_units[0])]
+		decoder_units += zip(conf.decoder_units[:-1], conf.decoder_units[1:])
+		decoder_units += [(conf.decoder_units[-1], conf.ndim_z)]
 		for i, (n_in, n_out) in enumerate(decoder_units):
 			decoder_attributes["layer_mean_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
 			decoder_attributes["batchnorm_mean_%i" % i] = L.BatchNormalization(n_in)

@@ -8,7 +8,7 @@ from args import args
 from model import conf, vae
 
 vae.load(args.model_dir)
-dataset, labels = util.load_labeled_images(args)
+dataset = util.load_images(args.train_image_dir)
 
 max_epoch = 1000
 num_trains_per_epoch = 2000
@@ -19,7 +19,7 @@ for epoch in xrange(max_epoch):
 	sum_loss = 0
 	epoch_time = time.time()
 	for t in xrange(num_trains_per_epoch):
-		x = util.sample_x_variables(batchsize, conf.ndim_x, dataset, use_gpu=conf.use_gpu)
+		x = util.sample_x_variable(batchsize, conf.ndim_x, dataset, use_gpu=conf.use_gpu)
 		loss = vae.train(x)
 		sum_loss += loss
 		if t % 100 == 0:

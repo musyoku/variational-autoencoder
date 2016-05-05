@@ -93,15 +93,15 @@ class VAE():
 
 		self.optimizer_encoder_xy_z = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_encoder_xy_z.setup(self.encoder_xy_z)
-		# self.optimizer_encoder_xy_z.add_hook(GradientClipping(10.0))
+		self.optimizer_encoder_xy_z.add_hook(GradientClipping(10.0))
 
 		self.optimizer_encoder_x_y = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_encoder_x_y.setup(self.encoder_x_y)
-		# self.optimizer_encoder_x_y.add_hook(GradientClipping(10.0))
+		self.optimizer_encoder_x_y.add_hook(GradientClipping(10.0))
 
 		self.optimizer_decoder = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_decoder.setup(self.decoder)
-		# self.optimizer_decoder.add_hook(GradientClipping(10.0))
+		self.optimizer_decoder.add_hook(GradientClipping(10.0))
 
 	def build(self, conf):
 		raise Exception()
@@ -419,10 +419,10 @@ class BernoulliM2VAE(VAE):
 
 		loss = loss_labeled + loss_unlabeled
 
-		# Extended
+		# classifier
 		y_distribution = self.encode_x_y(labeled_x, softmax=False, test=test)
-		extended_loss = alpha * F.softmax_cross_entropy(y_distribution, label_ids)
-		loss += extended_loss
+		loss_classifier = alpha * F.softmax_cross_entropy(y_distribution, label_ids)
+		loss += loss_classifier
 
 		self.zero_grads()
 		loss.backward()
@@ -431,8 +431,8 @@ class BernoulliM2VAE(VAE):
 		if self.gpu:
 			loss_labeled.to_cpu()
 			loss_unlabeled.to_cpu()
-			extended_loss.to_cpu()
-		return loss_labeled.data, loss_unlabeled.data, extended_loss.data
+			loss_classifier.to_cpu()
+		return loss_labeled.data, loss_unlabeled.data, loss_classifier.data
 
 	def train_supervised(self, labeled_x, labeled_y, alpha, L=1, test=False):
 		loss = self.loss_labeled(labeled_x, labeled_y, alpha, L=L, test=test)
