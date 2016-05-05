@@ -9,6 +9,6 @@ conf.encoder_apply_batchnorm_to_input = True
 conf.encoder_apply_batchnorm = False
 conf.decoder_apply_batchnorm_to_input = True
 conf.decoder_apply_batchnorm = False
-conf.encoder_units = [conf.ndim_x, 600, 600, conf.ndim_z]
-conf.decoder_units = [conf.ndim_z, 600, 600, conf.ndim_x]
+conf.encoder_units = [600, 600]
+conf.decoder_units = [600, 600]
 vae = BernoulliM1VAE(conf, name="m1")
