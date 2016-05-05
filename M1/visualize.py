@@ -9,7 +9,7 @@ from args import args
 from model import conf, vae
 
 try:
-	os.mkdir(args.visualization_dir)
+	os.mkdir(args.vis_dir)
 except:
 	pass
 

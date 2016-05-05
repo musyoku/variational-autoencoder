@@ -9,16 +9,18 @@ from args import args
 from model import conf, vae
 
 try:
-	os.mkdir(args.visualization_dir)
+	os.mkdir(args.vis_dir)
 except:
 	pass
 
 vae.load(args.model_dir)
 dataset = util.load_images(args.test_image_dir)
+
 num_images = 100
 x = util.sample_x_variable(num_images, conf.ndim_x, dataset, use_gpu=conf.use_gpu)
-z = vae.encode(x, test=True)
-_x = vae.decode(z, test=True, output_pixel_value=True)
+y = vae.encode_x_y(x, test=True)
+z = vae.encode_xy_z(x, y, test=True)
+_x = vae.decode_zy_x(z, y, test=True, output_pixel_value=True)
 if conf.use_gpu:
 	z.to_cpu()
 	_x.to_cpu()

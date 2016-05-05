@@ -16,4 +16,4 @@ conf.encoder_x_y_hidden_units = [500]
 conf.decoder_hidden_units = [500]
 conf.learning_rate = 0.00025
 conf.gradient_momentum = 0.95
-vae = BernoulliM2VAE(conf, name="m2")
+vae = GaussianM2VAE(conf, name="m2")
