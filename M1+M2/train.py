@@ -48,8 +48,8 @@ for epoch in xrange(max_epoch):
 	sum_loss_classifier = 0
 	epoch_time = time.time()
 	for t in xrange(num_trains_per_epoch):
-		x_labeled, y_labeled, label_ids = util.sample_x_and_label_variables(batchsize, conf2.ndim_x, conf2.ndim_y, labeled_dataset, labels, use_gpu=conf2.use_gpu)
-		x_unlabeled = util.sample_x_variable(batchsize, conf2.ndim_x, unlabeled_dataset, use_gpu=conf2.use_gpu)
+		x_labeled, y_labeled, label_ids = util.sample_x_and_label_variables(batchsize, conf1.ndim_x, conf2.ndim_y, labeled_dataset, labels, use_gpu=conf2.use_gpu)
+		x_unlabeled = util.sample_x_variable(batchsize, conf1.ndim_x, unlabeled_dataset, use_gpu=conf2.use_gpu)
 		z_labeled = vae1.encode(x_labeled, test=True)
 		z_unlabeled = vae1.encode(x_unlabeled, test=True)
 		loss_labeled, loss_unlabeled, loss_classifier = vae2.train(z_labeled, y_labeled, label_ids, z_unlabeled, alpha)
