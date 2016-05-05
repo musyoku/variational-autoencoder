@@ -12,7 +12,7 @@ vae2.load(args.model_dir)
 dataset, labels = util.load_labeled_images(args.train_image_dir)
 
 max_epoch = 1000
-num_trains_per_epoch = 200
+num_trains_per_epoch = 1000
 batchsize = 100
 
 # Create labeled/unlabeled split in training set
@@ -38,7 +38,7 @@ for epoch in xrange(max_epoch):
 	epoch_time = time.time() - epoch_time
 	total_time += epoch_time
 	sys.stdout.write("\r")
-	print "[M1] epoch:", epoch, "loss:", sum_loss / num_trains_per_epoch, "time:", "%d" % (epoch_time / 60), "min", "total", "%d" % (total_time / 60), "min"
+	print "[M1] epoch:", epoch, "loss: {:.3f}".format(sum_loss / num_trains_per_epoch), "time: {:d}min".format(int(epoch_time / 60)), "total: {:d}min".format(int(total_time / 60))
 	sys.stdout.flush()
 	vae1.save(args.model_dir)
 
@@ -62,6 +62,6 @@ for epoch in xrange(max_epoch):
 	epoch_time = time.time() - epoch_time
 	total_time += epoch_time
 	sys.stdout.write("\r")
-	print "[M2] epoch:", epoch, "loss::", "labeled:", sum_loss_labeled / num_trains_per_epoch, "unlabeled:", sum_loss_unlabeled / num_trains_per_epoch, "classifier:", sum_loss_classifier / num_trains_per_epoch, "time:", "{:f}".format(epoch_time / 60), "min", "total", "{:f}".format(total_time / 60), "min"
+	print "[M2] epoch:", epoch, "loss::", "labeled: {:.3f}".format(sum_loss_labeled / num_trains_per_epoch), "unlabeled: {:.3f}".format(sum_loss_unlabeled / num_trains_per_epoch), "classifier: {:.3f}".format(sum_loss_classifier / num_trains_per_epoch), "time: {:d} min".format(int(epoch_time / 60)), "total: {:d} min".format(int(total_time / 60))
 	sys.stdout.flush()
 	vae2.save(args.model_dir)

@@ -37,7 +37,7 @@ def train_supervised():
 		epoch_time = time.time() - epoch_time
 		total_time += epoch_time
 		sys.stdout.write("\r")
-		print "epoch:", epoch, "loss::", "labeled:", sum_loss / num_trains_per_epoch, "time:", "{:f}".format(epoch_time / 60), "min", "total", "{:f}".format(total_time / 60), "min"
+		print "epoch: {:d} loss:: labeled: {:.3f} time: {:d} min total: {:d} min".format(epoch, sum_loss / num_trains_per_epoch, int(epoch_time / 60), int(total_time / 60))
 		sys.stdout.flush()
 		vae.save(args.model_dir)
 
@@ -61,7 +61,7 @@ def train_semisupervised():
 		epoch_time = time.time() - epoch_time
 		total_time += epoch_time
 		sys.stdout.write("\r")
-		print "epoch:", epoch, "loss::", "labeled:", sum_loss_labeled / num_trains_per_epoch, "unlabeled:", sum_loss_unlabeled / num_trains_per_epoch, "classifier:", sum_loss_classifier / num_trains_per_epoch, "time:", "{:f}".format(epoch_time / 60), "min", "total", "{:f}".format(total_time / 60), "min"
+		print "epoch: {:d} loss:: labeled: {:.3f} unlabeled: {:.3f} classifier: {:.3f} time: {:d} min total: {:d} min".format(epoch, sum_loss_labeled / num_trains_per_epoch, sum_loss_unlabeled / num_trains_per_epoch, sum_loss_classifier / num_trains_per_epoch, int(epoch_time / 60), int(total_time / 60))
 		sys.stdout.flush()
 		vae.save(args.model_dir)
 

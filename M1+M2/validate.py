@@ -24,6 +24,6 @@ def validate_x_label():
 		if prediction[i] == label_ids.data[i]:
 			correct += 1
 
-	print "Classification accuracy:", correct / float(num_validation)
+	print "Classification accuracy: {:.3f}".format(correct / float(num_validation))
 
 validate_x_label()
