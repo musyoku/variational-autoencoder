@@ -15,7 +15,7 @@ def validate_x_label():
 	x_labeled, _, label_ids = util.sample_x_and_label_variables(num_validation, conf.ndim_x, conf.ndim_y, dataset, labels, use_gpu=False)
 	if conf.use_gpu:
 		x_labeled.to_gpu()
-	prediction = vae.sample_x_label(x_labeled, test=True)
+	prediction = vae.sample_x_label(x_labeled, test=True, argmax=True)
 
 	correct = 0
 	for i in xrange(num_validation):

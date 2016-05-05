@@ -298,12 +298,32 @@ class BernoulliM2VAE(VAE):
 	def encode_x_y(self, x, test=False, softmax=True):
 		return self.encoder_x_y(x, test=test, softmax=softmax)
 
+	def sample_x_y(self, x, argmax=False, test=False):
+		batchsize = x.data.shape[0]
+		y_distribution = self.encoder_x_y(x, test=test, softmax=True).data
+		n_labels = y_distribution.shape[1]
+		if self.gpu:
+			y_distribution = cuda.to_cpu(y_distribution)
+		sampled_y = np.zeros((batchsize, n_labels), dtype=np.float32)
+		if argmax:
+			args = np.argmax(y_distribution, axis=1)
+			for b in xrange(batchsize):
+				sampled_y[b, args[b]] = 1
+		else:
+			for b in xrange(batchsize):
+				label_id = np.random.choice(np.arange(n_labels), p=y_distribution[b])
+				sampled_y[b, label_id] = 1
+		sampled_y = Variable(sampled_y)
+		if self.gpu:
+			sampled_y.to_gpu()
+		return sampled_y
+
 	def sample_x_label(self, x, argmax=True, test=False):
 		batchsize = x.data.shape[0]
 		y_distribution = self.encoder_x_y(x, test=test, softmax=True).data
+		n_labels = y_distribution.shape[1]
 		if self.gpu:
 			y_distribution = cuda.to_cpu(y_distribution)
-		n_labels = y_distribution.shape[1]
 		if argmax:
 			sampled_label = np.argmax(y_distribution, axis=1)
 		else:
@@ -349,17 +369,9 @@ class BernoulliM2VAE(VAE):
 
 		# Approximation of -E_{q(y|x)}[-loss_labeled(x, y)]
 		for l in xrange(L):
-			y_distribution = self.encode_x_y(unlabeled_x, test=test)
-			n_labels = y_distribution.data.shape[1]
-			if False:
-				# Compute -E_{q(y|x)}[-loss_labeled(x, y)] for all y instead of sampling
-				# Under development
-				pass
-			else:
-				# -E_{q(y|x)}[-loss_labeled(x, y)]
-				sampled_y = sample_y(y_distribution)
-				loss_reconstruction, loss_kld_regularization = self.loss_labeled(unlabeled_x, sampled_y, L=1, test=test)
-				loss_expectation += loss_reconstruction + loss_kld_regularization
+			sampled_y = self.sample_x_y(unlabeled_x, test=test, argmax=False)
+			loss_reconstruction, loss_kld_regularization = self.loss_labeled(unlabeled_x, sampled_y, L=1, test=test)
+			loss_expectation += loss_reconstruction + loss_kld_regularization
 		loss_expectation /= L
 
 		# -H(q(y|x))
@@ -380,14 +392,7 @@ class BernoulliM2VAE(VAE):
 
 		# Extended
 		y_distribution = self.encode_x_y(labeled_x, softmax=False, test=test)
-		extended_loss = F.softmax_cross_entropy(y_distribution, label_ids)
-		# batchsize = labeled_x.data.shape[0]
-		# n_labels = y_distribution.data.shape[1]
-		# xp = self.xp
-		# # one-hot label vector can be regarded as a mask
-		# mask = labeled_y.data.astype(xp.float32)
-		# mask = Variable(mask)
-		# extended_loss = alpha * F.sum(mask * -F.log(y_distribution + 1e-6)) / batchsize
+		extended_loss = alpha * F.softmax_cross_entropy(y_distribution, label_ids)
 		loss += extended_loss
 
 		self.zero_grads()
@@ -582,47 +587,3 @@ class BernoulliDecoder(SoftmaxEncoder):
 		if output_pixel_value:
 			return (F.sigmoid(output) - 0.5) * 2.0
 		return output
-
-class LabelSampler(function.Function):
-	def __init__(self, argmax=False):
-		super(LabelSampler, self).__init__()
-		self.argmax = argmax
-
-	def check_type_forward(self, in_types):
-		n_in = in_types.size()
-		type_check.expect(n_in == 1)
-		y_type, = in_types
-
-		type_check.expect(
-			y_type.dtype == np.float32,
-			y_type.ndim == 2,
-		)
-
-	def forward(self, inputs):
-		xp = cuda.get_array_module(inputs[0])
-		y_distribution, = inputs
-		batchsize = y_distribution.shape[0]
-		n_labels = y_distribution.shape[1]
-		sampled_y = np.zeros((batchsize, n_labels), dtype=np.float32)
-		if self.argmax:
-			args = xp.argmax(y_distribution, axis=1)
-			for b in xrange(batchsize):
-				sampled_y[b, args[b]] = 1
-		else:
-			if xp is cuda.cupy:
-				y_distribution = cuda.to_cpu(y_distribution)
-			for b in xrange(batchsize):
-				label_id = np.random.choice(np.arange(n_labels), p=y_distribution[b])
-				sampled_y[b, label_id] = 1
-		if xp is cuda.cupy:
-			sampled_y = cuda.to_gpu(sampled_y)
-		self.prev_output = sampled_y
-		return sampled_y,
-
-	def backward(self, inputs, grad_outputs):
-		xp = cuda.get_array_module(inputs[0])
-		y_distribution, = inputs
-		return grad_outputs[0] * self.prev_output * y_distribution,
-
-def sample_y(y_distribution, argmax=False):
-	return LabelSampler(argmax)(y_distribution)
