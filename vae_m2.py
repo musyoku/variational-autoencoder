@@ -295,8 +295,8 @@ class BernoulliM2VAE(VAE):
 	def encode_xy_z(self, x, y, test=False):
 		return self.encoder_xy_z(x, y, test=test)
 
-	def encode_x_y(self, x, test=False):
-		return self.encoder_x_y(x, test=test)
+	def encode_x_y(self, x, test=False, softmax=True):
+		return self.encoder_x_y(x, test=test, softmax=softmax)
 
 	def sample_x_label(self, x, argmax=True, test=False):
 		batchsize = x.data.shape[0]
@@ -369,7 +369,7 @@ class BernoulliM2VAE(VAE):
 		loss_entropy = -F.sum(y_expectation * F.log(y_expectation + 1e-6)) / batchsize
 		return loss_expectation, loss_entropy
 
-	def train(self, labeled_x, labeled_y, unlabeled_x, alpha, labeled_L=1, unlabeled_L=1, test=False):
+	def train(self, labeled_x, labeled_y, label_ids, unlabeled_x, alpha, labeled_L=1, unlabeled_L=1, test=False):
 		loss_labeled_reconstruction, loss_labeled_kld = self.loss_labeled(labeled_x, labeled_y, L=labeled_L, test=test)
 		loss_labeled = loss_labeled_reconstruction + loss_labeled_kld
 
@@ -379,18 +379,19 @@ class BernoulliM2VAE(VAE):
 		loss = loss_labeled + loss_unlabeled
 
 		# Extended
-		y_distribution = self.encode_x_y(labeled_x, test=test)
-		batchsize = labeled_x.data.shape[0]
-		n_labels = y_distribution.data.shape[1]
-		xp = self.xp
-		# one-hot label vector can be regarded as a mask
-		mask = labeled_y.data.astype(xp.float32)
-		mask = Variable(mask)
-		extended_loss = alpha * F.sum(mask * -F.log(y_distribution + 1e-6)) / batchsize
+		y_distribution = self.encode_x_y(labeled_x, softmax=False, test=test)
+		extended_loss = F.softmax_cross_entropy(y_distribution, label_ids)
+		# batchsize = labeled_x.data.shape[0]
+		# n_labels = y_distribution.data.shape[1]
+		# xp = self.xp
+		# # one-hot label vector can be regarded as a mask
+		# mask = labeled_y.data.astype(xp.float32)
+		# mask = Variable(mask)
+		# extended_loss = alpha * F.sum(mask * -F.log(y_distribution + 1e-6)) / batchsize
 		loss += extended_loss
 
 		self.zero_grads()
-		extended_loss.backward()
+		loss.backward()
 		self.update()
 
 		if self.gpu:

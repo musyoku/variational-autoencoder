@@ -49,9 +49,9 @@ def train_semisupervised():
 		sum_loss_extended = 0
 		epoch_time = time.time()
 		for t in xrange(num_trains_per_epoch):
-			x_labeled, y_labeled = util.sample_x_and_y_variables(batchsize, conf.ndim_x, conf.ndim_y, labeled_dataset, labels, use_gpu=conf.use_gpu)
+			x_labeled, y_labeled, label_ids = util.sample_x_and_label_variables(batchsize, conf.ndim_x, conf.ndim_y, labeled_dataset, labels, use_gpu=conf.use_gpu)
 			x_unlabeled = util.sample_x_variable(batchsize, conf.ndim_x, unlabeled_dataset, use_gpu=conf.use_gpu)
-			loss_labeled, loss_unlabeled, loss_extended = vae.train(x_labeled, y_labeled, x_unlabeled, alpha)
+			loss_labeled, loss_unlabeled, loss_extended = vae.train(x_labeled, y_labeled, label_ids, x_unlabeled, alpha)
 			sum_loss_labeled += loss_labeled
 			sum_loss_unlabeled += loss_unlabeled
 			sum_loss_extended += loss_extended
