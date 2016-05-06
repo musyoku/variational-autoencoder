@@ -200,8 +200,10 @@ class VAE():
 		loss_labeled_reconstruction, loss_labeled_kld = self.loss_labeled(labeled_x, labeled_y, L=labeled_L, test=test)
 		loss_labeled = loss_labeled_reconstruction + loss_labeled_kld
 
-		loss_unlabeld_expectation, loss_unlabeled_entropy = self.loss_unlabeled(unlabeled_x, L=unlabeled_L, test=test)
-		loss_unlabeled = loss_unlabeld_expectation + loss_unlabeled_entropy
+		loss_unlabeled_expectation, loss_unlabeled_entropy = self.loss_unlabeled(unlabeled_x, L=unlabeled_L, test=test)
+		loss_unlabeled = loss_unlabeled_expectation + loss_unlabeled_entropy
+		print loss_unlabeled_expectation.data
+		print loss_unlabeled_entropy.data
 
 		loss = loss_labeled + loss_unlabeled
 
