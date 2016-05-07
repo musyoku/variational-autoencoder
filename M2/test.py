@@ -10,7 +10,7 @@ from model import conf, vae
 vae.load(args.model_dir)
 dataset, labels = util.load_labeled_images(args.test_image_dir)
 
-def validate_x_label():
+def test_x_label():
 	num_validation = 1000
 	x_labeled, _, label_ids = util.sample_x_and_label_variables(num_validation, conf.ndim_x, conf.ndim_y, dataset, labels, use_gpu=False)
 	if conf.use_gpu:
@@ -24,4 +24,4 @@ def validate_x_label():
 
 	print "Classification accuracy:", correct / float(num_validation)
 
-validate_x_label()
+test_x_label()

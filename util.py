@@ -41,15 +41,36 @@ def load_labeled_images(image_dir, convert_to_grayscale=True):
 		f.close()
 	return dataset, labels
 
-def create_semisupervised(dataset, labels, max_labeled_data=100):
-	x_labeled = []
-	y_labeled = []
-	labeled_indices = np.random.choice(np.arange(len(dataset), dtype=np.int32), size=max_labeled_data, replace=False)
-	for i in xrange(max_labeled_data):
-		index = labeled_indices[i]
-		x_labeled.append(dataset[index])
-		y_labeled.append(labels[index])
-	return x_labeled, y_labeled, dataset
+def create_semisupervised(dataset, labels, num_validation_data=10000, num_labeled_data=100):
+	training_labeled_x = []
+	training_unlabeled_x = []
+	validation_x = []
+	validation_labels = []
+	training_labels = []
+	flag = np.ones((len(dataset),), dtype=np.bool)
+	flag_tmp = np.ones((num_labeled_data + num_validation_data,), dtype=np.bool)
+	tmp_dataset = []
+	tmp_labels = []
+	except_indices = np.random.choice(np.arange(len(dataset), dtype=np.int32), size=num_labeled_data + num_validation_data, replace=False)
+	for i in xrange(len(except_indices)):
+		index = except_indices[i]
+		flag[index] = False
+		tmp_dataset.append(dataset[index])
+		tmp_labels.append(labels[index])
+	except_indices = np.random.choice(np.arange(len(tmp_dataset), dtype=np.int32), size=num_labeled_data, replace=False)
+	for i in xrange(len(except_indices)):
+		index = except_indices[i]
+		flag_tmp[index] = False
+		training_labeled_x.append(tmp_dataset[index])
+		training_labels.append(tmp_labels[index])
+	for i in xrange(len(tmp_dataset)):
+		if flag_tmp[i]:
+			validation_x.append(tmp_dataset[i])
+			validation_labels.append(tmp_labels[i])
+	for i in xrange(len(dataset)):
+		if flag[i]:
+			training_unlabeled_x.append(dataset[i])
+	return training_labeled_x, training_labels, training_unlabeled_x, validation_x, validation_labels
 
 def sample_x_variable(batchsize, ndim_x, dataset, sequential=False, use_gpu=True):
 	x_batch = np.zeros((batchsize, ndim_x), dtype=np.float32)

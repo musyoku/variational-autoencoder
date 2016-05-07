@@ -30,7 +30,7 @@ for epoch in xrange(max_epoch):
 	epoch_time = time.time()
 	for t in xrange(num_trains_per_epoch):
 		x = util.sample_x_variable(batchsize, conf1.ndim_x, dataset, use_gpu=conf1.use_gpu)
-		loss = vae1.train(x, L=3)
+		loss = vae1.train(x, L=1)
 		sum_loss += loss
 		if t % 100 == 0:
 			sys.stdout.write("\rTraining M1 in progress...(%d / %d)" % (t, num_trains_per_epoch))
@@ -52,7 +52,7 @@ for epoch in xrange(max_epoch):
 		x_unlabeled = util.sample_x_variable(batchsize, conf1.ndim_x, unlabeled_dataset, use_gpu=conf2.use_gpu)
 		z_labeled = Variable(vae1.encode(x_labeled, test=True).data)
 		z_unlabeled = Variable(vae1.encode(x_unlabeled, test=True).data)
-		loss_labeled, loss_unlabeled, loss_classifier = vae2.train(z_labeled, y_labeled, label_ids, z_unlabeled, alpha, labeled_L=3, unlabeled_L=3)
+		loss_labeled, loss_unlabeled, loss_classifier = vae2.train(z_labeled, y_labeled, label_ids, z_unlabeled, alpha, labeled_L=1, unlabeled_L=1)
 		sum_loss_labeled += loss_labeled
 		sum_loss_unlabeled += loss_unlabeled
 		sum_loss_classifier += loss_classifier
