@@ -41,35 +41,62 @@ def load_labeled_images(image_dir, convert_to_grayscale=True):
 		f.close()
 	return dataset, labels
 
-def create_semisupervised(dataset, labels, num_validation_data=10000, num_labeled_data=100):
+def create_semisupervised(dataset, labels, num_validation_data=10000, num_labeled_data=100, num_types_of_label=10):
 	training_labeled_x = []
 	training_unlabeled_x = []
 	validation_x = []
 	validation_labels = []
 	training_labels = []
-	flag = np.ones((len(dataset),), dtype=np.bool)
-	flag_tmp = np.ones((num_labeled_data + num_validation_data,), dtype=np.bool)
-	tmp_dataset = []
-	tmp_labels = []
-	except_indices = np.random.choice(np.arange(len(dataset), dtype=np.int32), size=num_labeled_data + num_validation_data, replace=False)
-	for i in xrange(len(except_indices)):
-		index = except_indices[i]
-		flag[index] = False
-		tmp_dataset.append(dataset[index])
-		tmp_labels.append(labels[index])
-	except_indices = np.random.choice(np.arange(len(tmp_dataset), dtype=np.int32), size=num_labeled_data, replace=False)
-	for i in xrange(len(except_indices)):
-		index = except_indices[i]
-		flag_tmp[index] = False
-		training_labeled_x.append(tmp_dataset[index])
-		training_labels.append(tmp_labels[index])
-	for i in xrange(len(tmp_dataset)):
-		if flag_tmp[i]:
-			validation_x.append(tmp_dataset[i])
-			validation_labels.append(tmp_labels[i])
+	flag = np.zeros((len(dataset),), dtype=np.uint8)
+	FLAG_TRAINING = 0
+	FLAG_LABELED = 1
+	FLAG_VALIDATION = 2
+	indices_for_label = {}
+	num_data_per_label = num_labeled_data / num_types_of_label
+	for n in xrange(num_types_of_label):
+		indices_for_label[n] = []
+
+	def a(index):
+		label = labels[index]
+		if len(indices_for_label[label]) < num_data_per_label:
+			for i in indices_for_label[label]:
+				if i == index:
+					return False
+			return True
+		return False
+
+	def b():
+		c = 0
+		for n in xrange(num_types_of_label):
+			c += len(indices_for_label[n])
+		return c != num_labeled_data
+
+	while b():
+		index = np.random.choice(np.arange(len(dataset), dtype=np.int32), size=1, replace=False)[0]
+		if a(index):
+			label = labels[index]
+			indices_for_label[label].append(index)
+			flag[index] = FLAG_LABELED
+
+	nv = 0
+	while nv < num_validation_data:
+		index = np.random.choice(np.arange(len(dataset), dtype=np.int32), size=1, replace=False)[0]
+		if flag[index] == FLAG_TRAINING:
+			flag[index] = FLAG_VALIDATION
+			nv += 1
+
 	for i in xrange(len(dataset)):
-		if flag[i]:
+		if flag[i] == FLAG_TRAINING:
 			training_unlabeled_x.append(dataset[i])
+		elif flag[i] == FLAG_VALIDATION:
+			validation_x.append(dataset[i])
+			validation_labels.append(labels[i])
+		elif flag[i] == FLAG_LABELED:
+			training_labeled_x.append(dataset[i])
+			training_labels.append(labels[i])
+		else:
+			pass
+
 	return training_labeled_x, training_labels, training_unlabeled_x, validation_x, validation_labels
 
 def sample_x_variable(batchsize, ndim_x, dataset, sequential=False, use_gpu=True):
