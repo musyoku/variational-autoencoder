@@ -196,7 +196,7 @@ class VAE():
 		loss_entropy = -F.sum(y_expectation * F.log(y_expectation + 1e-6)) / batchsize
 		return loss_expectation, loss_entropy
 
-	def train(self, labeled_x, labeled_y, label_ids, unlabeled_x, alpha, labeled_L=1, unlabeled_L=1, test=False):
+	def train(self, labeled_x, labeled_y, label_ids, unlabeled_x, labeled_L=1, unlabeled_L=1, test=False):
 		loss_labeled_reconstruction, loss_labeled_kld = self.loss_labeled(labeled_x, labeled_y, L=labeled_L, test=test)
 		loss_labeled = loss_labeled_reconstruction + loss_labeled_kld
 
@@ -205,11 +205,6 @@ class VAE():
 
 		loss = loss_labeled + loss_unlabeled
 
-		# classifier
-		y_distribution = self.encode_x_y(labeled_x, softmax=False, test=test)
-		loss_classifier = alpha * F.softmax_cross_entropy(y_distribution, label_ids)
-		loss += loss_classifier
-
 		self.zero_grads()
 		loss.backward()
 		self.update()
@@ -217,8 +212,17 @@ class VAE():
 		if self.gpu:
 			loss_labeled.to_cpu()
 			loss_unlabeled.to_cpu()
+		return loss_labeled.data, loss_unlabeled.data
+
+	def train_classification(self, labeled_x, label_ids, alpha=1.0, test=False):
+		y_distribution = self.encode_x_y(labeled_x, softmax=False, test=test)
+		loss_classifier = alpha * F.softmax_cross_entropy(y_distribution, label_ids)
+		self.zero_grads()
+		loss_classifier.backward()
+		self.update()
+		if self.gpu:
 			loss_classifier.to_cpu()
-		return loss_labeled.data, loss_unlabeled.data, loss_classifier.data
+		return loss_classifier.data
 
 	def train_supervised(self, labeled_x, labeled_y, alpha, L=1, test=False):
 		loss = self.loss_labeled(labeled_x, labeled_y, alpha, L=L, test=test)
