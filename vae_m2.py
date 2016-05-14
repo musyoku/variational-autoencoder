@@ -52,8 +52,8 @@ class Conf():
 		self.decoder_apply_batchnorm_to_input = False
 
 		self.use_gpu = True
-		self.learning_rate = 0.00025
-		self.gradient_momentum = 0.95
+		self.learning_rate = 0.0003
+		self.gradient_momentum = 0.9
 
 	def check(self):
 		pass
@@ -187,7 +187,7 @@ class VAE():
 			sampled_y = self.sample_x_y(unlabeled_x, test=test, argmax=False)
 			loss_reconstruction, loss_kld_regularization = self.loss_labeled(unlabeled_x, sampled_y, L=1, test=test)
 			loss_expectation += loss_reconstruction + loss_kld_regularization
-		loss_expectation /= L * batchsize
+		loss_expectation /= L
 
 		# -H(q(y|x))
 		# Math:
@@ -371,7 +371,7 @@ class GaussianM2VAE(VAE):
 class BernoulliM2VAE(VAE):
 
 	def build(self, conf):
-		wscale = 1.0
+		wscale = 0.05
 		encoder_xy_z_attributes = {}
 		encoder_xy_z_units = zip(conf.encoder_xy_z_hidden_units[:-1], conf.encoder_xy_z_hidden_units[1:])
 		encoder_xy_z_units += [(conf.encoder_xy_z_hidden_units[-1], conf.ndim_z)]

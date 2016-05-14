@@ -99,12 +99,11 @@ def create_semisupervised(dataset, labels, num_validation_data=10000, num_labele
 
 	return training_labeled_x, training_labels, training_unlabeled_x, validation_x, validation_labels
 
-def sample_x_variable(batchsize, ndim_x, dataset, sequential=False, use_gpu=True):
+def sample_x_variable(batchsize, ndim_x, dataset, use_gpu=True):
 	x_batch = np.zeros((batchsize, ndim_x), dtype=np.float32)
+	indices = np.random.choice(np.arange(len(dataset), dtype=np.int32), size=batchsize, replace=False)
 	for j in range(batchsize):
-		data_index = np.random.randint(len(dataset))
-		if sequential:
-			data_index = j
+		data_index = indices[j]
 		img = dataset[data_index]
 		x_batch[j] = img.reshape((ndim_x,))
 	x_batch = Variable(x_batch)
@@ -112,16 +111,15 @@ def sample_x_variable(batchsize, ndim_x, dataset, sequential=False, use_gpu=True
 		x_batch.to_gpu()
 	return x_batch
 
-def sample_x_and_label_variables(batchsize, ndim_x, ndim_y, dataset, labels, sequential=False, use_gpu=True):
+def sample_x_and_label_variables(batchsize, ndim_x, ndim_y, dataset, labels, use_gpu=True):
 	x_batch = np.zeros((batchsize, ndim_x), dtype=np.float32)
 	# one-hot
 	y_batch = np.zeros((batchsize, ndim_y), dtype=np.float32)
 	# label id
 	label_batch = np.zeros((batchsize,), dtype=np.int32)
+	indices = np.random.choice(np.arange(len(dataset), dtype=np.int32), size=batchsize, replace=False)
 	for j in range(batchsize):
-		data_index = np.random.randint(len(dataset))
-		if sequential:
-			data_index = j
+		data_index = indices[j]
 		img = dataset[data_index]
 		x_batch[j] = img.reshape((ndim_x,))
 		y_batch[j, labels[data_index]] = 1

@@ -52,7 +52,7 @@ for epoch in xrange(max_epoch):
 	vae.save(args.model_dir)
 
 	# validation
-	x_labeled, _, label_ids = util.sample_x_and_label_variables(num_validation_data, conf.ndim_x, conf.ndim_y, validation_dataset, validation_labels, sequential=True, use_gpu=False)
+	x_labeled, _, label_ids = util.sample_x_and_label_variables(num_validation_data, conf.ndim_x, conf.ndim_y, validation_dataset, validation_labels, use_gpu=False)
 	if conf.use_gpu:
 		x_labeled.to_gpu()
 	prediction = vae.sample_x_label(x_labeled, test=True, argmax=True)
