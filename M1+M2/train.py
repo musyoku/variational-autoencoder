@@ -53,6 +53,7 @@ for epoch in xrange(max_epoch):
 		z_labeled = Variable(vae1.encode(x_labeled, test=True).data)
 		z_unlabeled = Variable(vae1.encode(x_unlabeled, test=True).data)
 		loss_labeled, loss_unlabeled, loss_classifier = vae2.train(z_labeled, y_labeled, label_ids, z_unlabeled, alpha, labeled_L=1, unlabeled_L=1)
+		loss_classifier = vae.train_classification(x_labeled, label_ids, alpha=alpha)
 		sum_loss_labeled += loss_labeled
 		sum_loss_unlabeled += loss_unlabeled
 		sum_loss_classifier += loss_classifier

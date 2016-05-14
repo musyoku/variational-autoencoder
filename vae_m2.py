@@ -93,15 +93,15 @@ class VAE():
 
 		self.optimizer_encoder_xy_z = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_encoder_xy_z.setup(self.encoder_xy_z)
-		self.optimizer_encoder_xy_z.add_hook(GradientClipping(10.0))
+		# self.optimizer_encoder_xy_z.add_hook(GradientClipping(10.0))
 
 		self.optimizer_encoder_x_y = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_encoder_x_y.setup(self.encoder_x_y)
-		self.optimizer_encoder_x_y.add_hook(GradientClipping(10.0))
+		# self.optimizer_encoder_x_y.add_hook(GradientClipping(10.0))
 
 		self.optimizer_decoder = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_decoder.setup(self.decoder)
-		self.optimizer_decoder.add_hook(GradientClipping(10.0))
+		# self.optimizer_decoder.add_hook(GradientClipping(10.0))
 
 	def build(self, conf):
 		raise Exception()
@@ -187,13 +187,14 @@ class VAE():
 			sampled_y = self.sample_x_y(unlabeled_x, test=test, argmax=False)
 			loss_reconstruction, loss_kld_regularization = self.loss_labeled(unlabeled_x, sampled_y, L=1, test=test)
 			loss_expectation += loss_reconstruction + loss_kld_regularization
-		loss_expectation /= L
+		loss_expectation /= L * batchsize
 
 		# -H(q(y|x))
 		# Math:
 		# -sum_{y}q(y|x)logq(y|x)
 		y_expectation = self.encoder_x_y(unlabeled_x, test=test, softmax=True)
 		loss_entropy = -F.sum(y_expectation * F.log(y_expectation + 1e-6)) / batchsize
+
 		return loss_expectation, loss_entropy
 
 	def train(self, labeled_x, labeled_y, label_ids, unlabeled_x, labeled_L=1, unlabeled_L=1, test=False):
@@ -373,7 +374,7 @@ class BernoulliM2VAE(VAE):
 		wscale = 1.0
 		encoder_xy_z_attributes = {}
 		encoder_xy_z_units = zip(conf.encoder_xy_z_hidden_units[:-1], conf.encoder_xy_z_hidden_units[1:])
-		encoder_xy_z_units += [(conf.encoder_x_y_hidden_units[-1], conf.ndim_z)]
+		encoder_xy_z_units += [(conf.encoder_xy_z_hidden_units[-1], conf.ndim_z)]
 		for i, (n_in, n_out) in enumerate(encoder_xy_z_units):
 			encoder_xy_z_attributes["layer_mean_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
 			encoder_xy_z_attributes["batchnorm_mean_%i" % i] = L.BatchNormalization(n_in)

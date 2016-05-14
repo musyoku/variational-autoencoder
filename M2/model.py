@@ -8,10 +8,10 @@ conf.ndim_z = 50
 conf.encoder_xy_z_apply_batchnorm_to_input = False
 conf.encoder_x_y_apply_batchnorm_to_input = False
 conf.decoder_apply_batchnorm_to_input = False
-conf.encoder_x_y_apply_dropout = False
-conf.encoder_xy_z_apply_dropout = False
-conf.decoder_apply_dropout = False
+conf.encoder_x_y_apply_dropout = True
+conf.encoder_xy_z_apply_dropout = True
+conf.decoder_apply_dropout = True
 conf.encoder_xy_z_hidden_units = [500]
-conf.encoder_x_y_hidden_units = [500]
+conf.encoder_x_y_hidden_units = [50]
 conf.decoder_hidden_units = [500]
 vae = BernoulliM2VAE(conf, name="m2")

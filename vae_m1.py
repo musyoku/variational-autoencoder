@@ -23,15 +23,15 @@ class Conf():
 
 		# e.g.
 		# ndim_x (input) -> 2000 -> 1000 -> 100 (output)
-		# encoder_units = [2000, 1000]
-		self.encoder_hidden_units = [512, 256]
+		# encoder_hidden_units = [2000, 1000]
+		self.encoder_hidden_units = [600, 600]
 		self.encoder_activation_function = "softplus"
 		self.encoder_output_activation_function = None
 		self.encoder_apply_dropout = False
 		self.encoder_apply_batchnorm = False
 		self.encoder_apply_batchnorm_to_input = False
 
-		self.decoder_hidden_units = [256, 512]
+		self.decoder_hidden_units = [600, 600]
 		self.decoder_activation_function = "softplus"
 		self.decoder_output_activation_function = None	# this will be ignored when decoder is BernoulliDecoder
 		self.decoder_apply_dropout = False
