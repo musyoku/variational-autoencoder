@@ -16,12 +16,14 @@ num_trains_per_epoch = 1000
 batchsize = 100
 
 # Create labeled/unlabeled split in training set
-max_labbeled_data = 300
-labeled_dataset, labels, unlabeled_dataset = util.create_semisupervised(dataset, labels, max_labbeled_data)
+num_types_of_label = 10
+num_labbeled_data = 100
+num_validation_data = 10000
+labeled_dataset, labels, unlabeled_dataset, validation_dataset, validation_labels = util.create_semisupervised(dataset, labels, num_validation_data, num_labbeled_data, num_types_of_label)
 print "labels:", labels
 alpha = 0.1 * len(dataset) / len(labeled_dataset)
 print "alpha:", alpha
-print "dataset::", "labeled:", len(labeled_dataset), "unlabeled:", len(unlabeled_dataset)
+print "dataset:: labeled: {:d} unlabeled: {:d} validation: {:d}".format(len(labeled_dataset), len(unlabeled_dataset), len(validation_dataset))
 
 total_time = 0
 for epoch in xrange(max_epoch):
@@ -30,7 +32,10 @@ for epoch in xrange(max_epoch):
 	epoch_time = time.time()
 	for t in xrange(num_trains_per_epoch):
 		x = util.sample_x_variable(batchsize, conf1.ndim_x, dataset, use_gpu=conf1.use_gpu)
+
+		# train
 		loss = vae1.train(x, L=1)
+
 		sum_loss += loss
 		if t % 100 == 0:
 			sys.stdout.write("\rTraining M1 in progress...(%d / %d)" % (t, num_trains_per_epoch))
@@ -52,8 +57,11 @@ for epoch in xrange(max_epoch):
 		x_unlabeled = util.sample_x_variable(batchsize, conf1.ndim_x, unlabeled_dataset, use_gpu=conf2.use_gpu)
 		z_labeled = Variable(vae1.encode(x_labeled, test=True).data)
 		z_unlabeled = Variable(vae1.encode(x_unlabeled, test=True).data)
-		loss_labeled, loss_unlabeled, loss_classifier = vae2.train(z_labeled, y_labeled, label_ids, z_unlabeled, alpha, labeled_L=1, unlabeled_L=1)
-		loss_classifier = vae.train_classification(x_labeled, label_ids, alpha=alpha)
+
+		# train
+		loss_labeled, loss_unlabeled = vae2.train(z_labeled, y_labeled, label_ids, z_unlabeled, labeled_L=1, unlabeled_L=1)
+		loss_classifier = vae2.train_classification(z_labeled, label_ids, alpha=alpha)
+		
 		sum_loss_labeled += loss_labeled
 		sum_loss_unlabeled += loss_unlabeled
 		sum_loss_classifier += loss_classifier

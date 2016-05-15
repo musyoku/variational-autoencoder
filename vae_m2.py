@@ -194,6 +194,7 @@ class VAE():
 		# -sum_{y}q(y|x)logq(y|x)
 		y_expectation = self.encoder_x_y(unlabeled_x, test=test, softmax=True)
 		loss_entropy = -F.sum(y_expectation * F.log(y_expectation + 1e-6)) / batchsize
+		loss_entropy = 0
 
 		return loss_expectation, loss_entropy
 
@@ -328,11 +329,11 @@ class GaussianM2VAE(VAE):
 			decoder_attributes["batchnorm_var_%i" % i] = L.BatchNormalization(n_in)
 
 		# Note: GaussianDecoder is the same as GaussianEncoder (it takes x and y)
-		decoder_attributes["layer_mean_merge_x"] = L.Linear(conf.ndim_z, conf.decoder_hidden_units[0])
-		decoder_attributes["layer_mean_merge_y"] = L.Linear(conf.ndim_y, conf.decoder_hidden_units[0])
+		decoder_attributes["layer_mean_merge_x"] = L.Linear(conf.ndim_z, conf.decoder_hidden_units[0], wscale=wscale)
+		decoder_attributes["layer_mean_merge_y"] = L.Linear(conf.ndim_y, conf.decoder_hidden_units[0], wscale=wscale)
 		decoder_attributes["batchnorm_mean_merge_x"] = L.BatchNormalization(conf.ndim_z)
-		decoder_attributes["layer_var_merge_x"] = L.Linear(conf.ndim_z, conf.decoder_hidden_units[0])
-		decoder_attributes["layer_var_merge_y"] = L.Linear(conf.ndim_y, conf.decoder_hidden_units[0])
+		decoder_attributes["layer_var_merge_x"] = L.Linear(conf.ndim_z, conf.decoder_hidden_units[0], wscale=wscale)
+		decoder_attributes["layer_var_merge_y"] = L.Linear(conf.ndim_y, conf.decoder_hidden_units[0], wscale=wscale)
 		decoder_attributes["batchnorm_var_merge_x"] = L.BatchNormalization(conf.ndim_z)
 		decoder = GaussianDecoder(**decoder_attributes)
 		decoder.n_layers = len(decoder_units)
@@ -371,7 +372,7 @@ class GaussianM2VAE(VAE):
 class BernoulliM2VAE(VAE):
 
 	def build(self, conf):
-		wscale = 0.05
+		wscale = 0.1
 		encoder_xy_z_attributes = {}
 		encoder_xy_z_units = zip(conf.encoder_xy_z_hidden_units[:-1], conf.encoder_xy_z_hidden_units[1:])
 		encoder_xy_z_units += [(conf.encoder_xy_z_hidden_units[-1], conf.ndim_z)]
@@ -380,12 +381,12 @@ class BernoulliM2VAE(VAE):
 			encoder_xy_z_attributes["batchnorm_mean_%i" % i] = L.BatchNormalization(n_in)
 			encoder_xy_z_attributes["layer_var_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
 			encoder_xy_z_attributes["batchnorm_var_%i" % i] = L.BatchNormalization(n_in)
-		encoder_xy_z_attributes["layer_mean_merge_x"] = L.Linear(conf.ndim_x, conf.encoder_xy_z_hidden_units[0])
+		encoder_xy_z_attributes["layer_mean_merge_x"] = L.Linear(conf.ndim_x, conf.encoder_xy_z_hidden_units[0], wscale=wscale)
 		encoder_xy_z_attributes["batchnorm_mean_merge_x"] = L.BatchNormalization(conf.ndim_x)
-		encoder_xy_z_attributes["layer_var_merge_x"] = L.Linear(conf.ndim_x, conf.encoder_xy_z_hidden_units[0])
+		encoder_xy_z_attributes["layer_var_merge_x"] = L.Linear(conf.ndim_x, conf.encoder_xy_z_hidden_units[0], wscale=wscale)
 		encoder_xy_z_attributes["batchnorm_var_merge_x"] = L.BatchNormalization(conf.ndim_x)
-		encoder_xy_z_attributes["layer_mean_merge_y"] = L.Linear(conf.ndim_y, conf.encoder_xy_z_hidden_units[0])
-		encoder_xy_z_attributes["layer_var_merge_y"] = L.Linear(conf.ndim_y, conf.encoder_xy_z_hidden_units[0])
+		encoder_xy_z_attributes["layer_mean_merge_y"] = L.Linear(conf.ndim_y, conf.encoder_xy_z_hidden_units[0], wscale=wscale)
+		encoder_xy_z_attributes["layer_var_merge_y"] = L.Linear(conf.ndim_y, conf.encoder_xy_z_hidden_units[0], wscale=wscale)
 		encoder_xy_z = GaussianEncoder(**encoder_xy_z_attributes)
 		encoder_xy_z.n_layers = len(encoder_xy_z_units)
 		encoder_xy_z.activation_function = conf.encoder_xy_z_activation_function
@@ -415,9 +416,9 @@ class BernoulliM2VAE(VAE):
 		for i, (n_in, n_out) in enumerate(decoder_units):
 			decoder_attributes["layer_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
 			decoder_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
-		decoder_attributes["layer_merge_z"] = L.Linear(conf.ndim_z, conf.decoder_hidden_units[0])
+		decoder_attributes["layer_merge_z"] = L.Linear(conf.ndim_z, conf.decoder_hidden_units[0], wscale=wscale)
 		decoder_attributes["batchnorm_merge_z"] = L.BatchNormalization(conf.ndim_z)
-		decoder_attributes["layer_merge_y"] = L.Linear(conf.ndim_y, conf.decoder_hidden_units[0])
+		decoder_attributes["layer_merge_y"] = L.Linear(conf.ndim_y, conf.decoder_hidden_units[0], wscale=wscale)
 		decoder = BernoulliDecoder(**decoder_attributes)
 		decoder.n_layers = len(decoder_units)
 		decoder.activation_function = conf.decoder_activation_function
