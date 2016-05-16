@@ -173,27 +173,42 @@ class VAE():
 	def decode_zy_x(self, z, y, test=False, output_pixel_value=False):
 		return self.decoder(z, y, test=test, output_pixel_value=output_pixel_value)
 
-	def loss_unlabeled(self, unlabeled_x, num_types_of_label=10, L=1, test=False):
+	def bernoulli_nll_keepbatch(self, x, y):
+		nll = F.softplus(y) - x * y
+		return F.sum(nll, axis=1)
+
+	def gaussian_kl_divergence(self, mean, ln_var):
+		kld = F.sum(mean * mean + var - ln_var - mean.data.shape[0], axis=1) * 0.5
+		return kld
+
+	def loss_unlabeled(self, unlabeled_x, L=1, test=False):
 		# Math:
 		# Loss = -E_{q(y|x)}[-loss_labeled(x, y)] - H(q(y|x))
 		# where H(p) is the Entropy of the p
 		loss_expectation = 0
 		batchsize = unlabeled_x.data.shape[0]
+		xp = self.xp
+		y_expectation = self.encoder_x_y(unlabeled_x, test=test, softmax=True)
+		num_types_of_label = y_expectation.data.shape[1]
 
-		# Approximation of -E_{q(y|x)}[-loss_labeled(x, y)]
-		for l in xrange(L):
-			sampled_y = self.sample_x_y(unlabeled_x, test=test, argmax=False)
-			loss_reconstruction, loss_kld_regularization = self.loss_labeled(unlabeled_x, sampled_y, L=1, test=test)
-			loss_expectation += loss_reconstruction + loss_kld_regularization
-		loss_expectation /= L
+		# Marginalize y
+		loss_lower_bound = 0
+		for n in xrange(num_types_of_label):
+			y_n = xp.zeros((batchsize, num_types_of_label), dtype=xp.float32)
+			y_n[:,n] = 1
+			y_n = Variable(y_n)
+			loss_reconstruction, loss_kld_regularization = self.loss_labeled_keepbatch(unlabeled_x, y_n, L=1, test=test)
+			loss_n = loss_reconstruction + loss_kld_regularization
+			mask_n = y_n
+			loss_lower_bound += multiply(mask_n, loss_n)
+		loss_lower_bound *= y_expectation
 
 		# -H(q(y|x))
 		# Math:
 		# -sum_{y}q(y|x)logq(y|x)
-		y_expectation = self.encoder_x_y(unlabeled_x, test=test, softmax=True)
 		loss_entropy = F.sum(y_expectation * F.log(y_expectation + 1e-6)) / batchsize
 
-		return loss_expectation, loss_entropy
+		return loss_lower_bound, loss_entropy
 
 	def train(self, labeled_x, labeled_y, label_ids, unlabeled_x, labeled_L=1, unlabeled_L=1, test=False):
 		loss_labeled_reconstruction, loss_labeled_kld = self.loss_labeled(labeled_x, labeled_y, L=labeled_L, test=test)
@@ -452,6 +467,28 @@ class BernoulliM2VAE(VAE):
 
 		return loss_reconstruction, loss_kld_regularization
 
+	def loss_labeled_keepbatch(self, x, y, L=1, test=False):
+		# Math:
+		# Loss = -E_{q(z|x,y)}[logp(x|y,z) + logp(y)] + KL(q(z|x,y)||p(z))
+		loss_reconstruction = 0
+		batchsize = x.data.shape[0]
+		z_mean, z_ln_var = self.encoder_xy_z(x, y, test=test, sample_output=False)
+		# -E_{q(z|x,y)}[logp(x|y,z) + logp(y)]
+		for l in xrange(L):
+			# Sample z
+			z = F.gaussian(z_mean, z_ln_var)
+			# Decode
+			x_expectation = self.decode_zy_x(z, y, test=test)
+			# x is between -1 to 1 so we convert it to be between 0 to 1
+			# logp(y) = log(1/num_labels)
+			reconstuction_loss = self.bernoulli_nll((x + 1.0) / 2.0, x_expectation) - math.log(1.0 / y.data.shape[1])
+			loss_reconstruction += reconstuction_loss
+		loss_reconstruction /= L * batchsize
+		# KL(q(z|x,y)||p(z))
+		loss_kld_regularization = self.gaussian_kl_divergence(z_mean, z_ln_var) / batchsize
+
+		return loss_reconstruction, loss_kld_regularization
+
 
 class SoftmaxEncoder(chainer.Chain):
 	def __init__(self, **layers):
@@ -615,31 +652,29 @@ class BernoulliDecoder(SoftmaxEncoder):
 		return output
 
 
-# this enables you to multiply vector variable by scalar variable
-# [a, b, c] * d = [a*d, b*d, c*d]
 class Multiply(function.Function):
 	def check_type_forward(self, in_types):
 		n_in = in_types.size()
 		type_check.expect(n_in == 2)
-		context_type, weight_type = in_types
+		matrix_type, vector_type = in_types
 
 		type_check.expect(
-			context_type.dtype == np.float32,
-			weight_type.dtype == np.float32,
-			context_type.ndim == 2,
-			weight_type.ndim == 2,
+			matrix_type.dtype == np.float32,
+			vector_type.dtype == np.float32,
+			matrix_type.ndim == 2,
+			vector_type.ndim == 2,
 		)
 
 	def forward(self, inputs):
 		xp = cuda.get_array_module(inputs[0])
-		vector, scalar = inputs
-		output = vector * scalar
+		matrix, vector = inputs
+		output = matrix * vector
 		return output,
 
 	def backward(self, inputs, grad_outputs):
 		xp = cuda.get_array_module(inputs[0])
-		vector, scalar = inputs
-		return grad_outputs[0] * scalar, xp.sum(grad_outputs[0] * vector, axis=1).reshape(-1, 1)
+		matrix, vector = inputs
+		return grad_outputs[0] * vector, xp.sum(grad_outputs[0] * matrix, axis=1).reshape(-1, 1)
 
-def multiply(vector, scalar):
-	return Multiply()(vector, scalar)
+def multiply(matrix, vector):
+	return Multiply()(matrix, vector)
