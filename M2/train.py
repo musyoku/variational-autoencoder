@@ -20,7 +20,7 @@ num_labbeled_data = 100
 num_validation_data = 10000
 labeled_dataset, labels, unlabeled_dataset, validation_dataset, validation_labels = util.create_semisupervised(dataset, labels, num_validation_data, num_labbeled_data, num_types_of_label)
 print "labels:", labels
-alpha = 0.1 * len(dataset) / len(labeled_dataset)
+alpha = 0.1 * len(unlabeled_dataset)
 print "alpha:", alpha
 print "dataset:: labeled: {:d} unlabeled: {:d} validation: {:d}".format(len(labeled_dataset), len(unlabeled_dataset), len(validation_dataset))
 

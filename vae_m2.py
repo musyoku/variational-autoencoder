@@ -52,7 +52,7 @@ class Conf():
 		self.decoder_apply_batchnorm_to_input = False
 
 		self.use_gpu = True
-		self.learning_rate = 0.0003
+		self.learning_rate = 0.00003
 		self.gradient_momentum = 0.9
 
 	def check(self):
@@ -93,15 +93,12 @@ class VAE():
 
 		self.optimizer_encoder_xy_z = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_encoder_xy_z.setup(self.encoder_xy_z)
-		# self.optimizer_encoder_xy_z.add_hook(GradientClipping(10.0))
 
 		self.optimizer_encoder_x_y = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_encoder_x_y.setup(self.encoder_x_y)
-		# self.optimizer_encoder_x_y.add_hook(GradientClipping(10.0))
 
 		self.optimizer_decoder = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_decoder.setup(self.decoder)
-		# self.optimizer_decoder.add_hook(GradientClipping(10.0))
 
 	def build(self, conf):
 		raise Exception()
@@ -138,6 +135,7 @@ class VAE():
 	def sample_x_y(self, x, argmax=False, test=False):
 		batchsize = x.data.shape[0]
 		y_distribution = self.encoder_x_y(x, test=test, softmax=True).data
+		print y_distribution
 		n_labels = y_distribution.shape[1]
 		if self.gpu:
 			y_distribution = cuda.to_cpu(y_distribution)
@@ -175,7 +173,7 @@ class VAE():
 	def decode_zy_x(self, z, y, test=False, output_pixel_value=False):
 		return self.decoder(z, y, test=test, output_pixel_value=output_pixel_value)
 
-	def loss_unlabeled(self, unlabeled_x, L=1, test=False):
+	def loss_unlabeled(self, unlabeled_x, num_types_of_label=10, L=1, test=False):
 		# Math:
 		# Loss = -E_{q(y|x)}[-loss_labeled(x, y)] - H(q(y|x))
 		# where H(p) is the Entropy of the p
@@ -193,8 +191,7 @@ class VAE():
 		# Math:
 		# -sum_{y}q(y|x)logq(y|x)
 		y_expectation = self.encoder_x_y(unlabeled_x, test=test, softmax=True)
-		loss_entropy = -F.sum(y_expectation * F.log(y_expectation + 1e-6)) / batchsize
-		loss_entropy = 0
+		loss_entropy = F.sum(y_expectation * F.log(y_expectation + 1e-6)) / batchsize
 
 		return loss_expectation, loss_entropy
 
@@ -616,3 +613,33 @@ class BernoulliDecoder(SoftmaxEncoder):
 		if output_pixel_value:
 			return (F.sigmoid(output) - 0.5) * 2.0
 		return output
+
+
+# this enables you to multiply vector variable by scalar variable
+# [a, b, c] * d = [a*d, b*d, c*d]
+class Multiply(function.Function):
+	def check_type_forward(self, in_types):
+		n_in = in_types.size()
+		type_check.expect(n_in == 2)
+		context_type, weight_type = in_types
+
+		type_check.expect(
+			context_type.dtype == np.float32,
+			weight_type.dtype == np.float32,
+			context_type.ndim == 2,
+			weight_type.ndim == 2,
+		)
+
+	def forward(self, inputs):
+		xp = cuda.get_array_module(inputs[0])
+		vector, scalar = inputs
+		output = vector * scalar
+		return output,
+
+	def backward(self, inputs, grad_outputs):
+		xp = cuda.get_array_module(inputs[0])
+		vector, scalar = inputs
+		return grad_outputs[0] * scalar, xp.sum(grad_outputs[0] * vector, axis=1).reshape(-1, 1)
+
+def multiply(vector, scalar):
+	return Multiply()(vector, scalar)
