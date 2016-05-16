@@ -177,8 +177,9 @@ class VAE():
 		nll = F.softplus(y) - x * y
 		return F.sum(nll, axis=1)
 
-	def gaussian_kl_divergence(self, mean, ln_var):
-		kld = F.sum(mean * mean + var - ln_var - mean.data.shape[0], axis=1) * 0.5
+	def gaussian_kl_divergence_keepbatch(self, mean, ln_var):
+		var = F.exp(ln_var)
+		kld = (F.sum(mean * mean, axis=1) + F.sum(var, axis=1) - F.sum(ln_var, axis=1) - mean.data.shape[1]) * 0.5
 		return kld
 
 	def loss_unlabeled(self, unlabeled_x, L=1, test=False):
@@ -200,8 +201,8 @@ class VAE():
 			loss_reconstruction, loss_kld_regularization = self.loss_labeled_keepbatch(unlabeled_x, y_n, L=1, test=test)
 			loss_n = loss_reconstruction + loss_kld_regularization
 			mask_n = y_n
-			loss_lower_bound += multiply(mask_n, loss_n)
-		loss_lower_bound *= y_expectation
+			loss_lower_bound += multiply(mask_n, F.reshape(loss_n, (batchsize, 1)))
+		loss_lower_bound = F.sum(loss_lower_bound * y_expectation) / batchsize
 
 		# -H(q(y|x))
 		# Math:
@@ -481,11 +482,11 @@ class BernoulliM2VAE(VAE):
 			x_expectation = self.decode_zy_x(z, y, test=test)
 			# x is between -1 to 1 so we convert it to be between 0 to 1
 			# logp(y) = log(1/num_labels)
-			reconstuction_loss = self.bernoulli_nll((x + 1.0) / 2.0, x_expectation) - math.log(1.0 / y.data.shape[1])
+			reconstuction_loss = self.bernoulli_nll_keepbatch((x + 1.0) / 2.0, x_expectation) - math.log(1.0 / y.data.shape[1])
 			loss_reconstruction += reconstuction_loss
-		loss_reconstruction /= L * batchsize
+		loss_reconstruction /= L
 		# KL(q(z|x,y)||p(z))
-		loss_kld_regularization = self.gaussian_kl_divergence(z_mean, z_ln_var) / batchsize
+		loss_kld_regularization = self.gaussian_kl_divergence_keepbatch(z_mean, z_ln_var)
 
 		return loss_reconstruction, loss_kld_regularization
 

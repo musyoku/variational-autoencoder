@@ -41,7 +41,7 @@ for epoch in xrange(max_epoch):
 		sum_loss_labeled += loss_labeled
 		sum_loss_unlabeled += loss_unlabeled
 		sum_loss_classifier += loss_classifier
-		if t % 100 == 0:
+		if t % 10 == 0:
 			sys.stdout.write("\rTraining in progress...({:d} / {:d})".format(t, num_trains_per_epoch))
 			sys.stdout.flush()
 	epoch_time = time.time() - epoch_time
