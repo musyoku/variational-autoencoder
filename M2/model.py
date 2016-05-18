@@ -6,12 +6,12 @@ conf = Conf()
 conf.use_gpu = False if args.use_gpu == 0 else True
 conf.ndim_z = 50
 conf.encoder_xy_z_apply_batchnorm_to_input = False
+conf.encoder_xy_z_apply_batchnorm = False
 conf.encoder_x_y_apply_batchnorm_to_input = False
+conf.encoder_x_y_apply_batchnorm = False
 conf.decoder_apply_batchnorm_to_input = False
-conf.encoder_x_y_apply_dropout = False
-conf.encoder_xy_z_apply_dropout = False
-conf.decoder_apply_dropout = False
-conf.encoder_xy_z_hidden_units = [500]
-conf.encoder_x_y_hidden_units = [500]
-conf.decoder_hidden_units = [500]
+conf.decoder_apply_batchnorm = False
+conf.encoder_xy_z_hidden_units = [600]
+conf.encoder_x_y_hidden_units = [600]
+conf.decoder_hidden_units = [600]
 vae = BernoulliM2VAE(conf, name="m2")

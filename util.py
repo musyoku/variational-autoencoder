@@ -6,8 +6,9 @@ from StringIO import StringIO
 from PIL import Image
 from chainer import cuda, Variable, function
 from chainer.utils import type_check
+from sklearn import preprocessing
 
-def load_images(image_dir, convert_to_grayscale=True):
+def load_images(image_dir, convert_to_grayscale=True, binarize=False):
 	dataset = []
 	fs = os.listdir(image_dir)
 	print "loading", len(fs), "images..."
@@ -17,12 +18,15 @@ def load_images(image_dir, convert_to_grayscale=True):
 			img = np.asarray(Image.open(StringIO(f.read())).convert("L"), dtype=np.float32) / 255.0
 		else:
 			img = np.asarray(Image.open(StringIO(f.read())).convert("RGB"), dtype=np.float32).transpose(2, 0, 1) / 255.0
+		if binarize:
+			img = preprocessing.binarize(img, threshold=0.5)
 		img = (img - 0.5) / 0.5
+		print img
 		dataset.append(img)
 		f.close()
 	return dataset
 
-def load_labeled_images(image_dir, convert_to_grayscale=True):
+def load_labeled_images(image_dir, convert_to_grayscale=True, binarize=False):
 	dataset = []
 	labels = []
 	fs = os.listdir(image_dir)
@@ -35,7 +39,9 @@ def load_labeled_images(image_dir, convert_to_grayscale=True):
 			img = np.asarray(Image.open(StringIO(f.read())).convert("L"), dtype=np.float32) / 255.0
 		else:
 			img = np.asarray(Image.open(StringIO(f.read())).convert("RGB"), dtype=np.float32).transpose(2, 0, 1) / 255.0
-		img = (img - 0.5) / 0.5
+		if binarize:
+			img = preprocessing.binarize(img, threshold=0.5)
+		img = (img - 0.5) / 0.5	
 		dataset.append(img)
 		labels.append(label)
 		f.close()

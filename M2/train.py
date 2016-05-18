@@ -32,7 +32,7 @@ for epoch in xrange(max_epoch):
 	epoch_time = time.time()
 	for t in xrange(num_trains_per_epoch):
 		x_labeled, y_labeled, label_ids = util.sample_x_and_label_variables(batchsize, conf.ndim_x, conf.ndim_y, labeled_dataset, labels, use_gpu=conf.use_gpu)
-		x_unlabeled = util.sample_x_variable(batchsize, conf.ndim_x, unlabeled_dataset, use_gpu=conf.use_gpu)
+		x_unlabeled = util.sample_x_variable(10, conf.ndim_x, unlabeled_dataset, use_gpu=conf.use_gpu)
 
 		# train
 		loss_labeled, loss_unlabeled = vae.train(x_labeled, y_labeled, label_ids, x_unlabeled)

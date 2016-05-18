@@ -28,14 +28,14 @@ class Conf():
 		# ndim_x + ndim_y(input) -> 2000 -> 1000 -> 100 (output)
 		# encoder_xy_z_hidden_units = [2000, 1000]
 		self.encoder_xy_z_hidden_units = [600, 600]
-		self.encoder_xy_z_activation_function = "softplus"
+		self.encoder_xy_z_activation_function = "elu"
 		self.encoder_xy_z_output_activation_function = None
 		self.encoder_xy_z_apply_dropout = False
 		self.encoder_xy_z_apply_batchnorm = False
 		self.encoder_xy_z_apply_batchnorm_to_input = False
 
 		self.encoder_x_y_hidden_units = [600, 600]
-		self.encoder_x_y_activation_function = "softplus"
+		self.encoder_x_y_activation_function = "elu"
 		self.encoder_x_y_output_activation_function = None
 		self.encoder_x_y_apply_dropout = False
 		self.encoder_x_y_apply_batchnorm = False
@@ -45,7 +45,7 @@ class Conf():
 		# ndim_z + ndim_y(input) -> 2000 -> 1000 -> 100 (output)
 		# decoder_hidden_units = [2000, 1000]
 		self.decoder_hidden_units = [600, 600]
-		self.decoder_activation_function = "softplus"
+		self.decoder_activation_function = "elu"
 		self.decoder_output_activation_function = None	# this will be ignored when decoder is BernoulliDecoder
 		self.decoder_apply_dropout = False
 		self.decoder_apply_batchnorm = False
@@ -93,12 +93,15 @@ class VAE():
 
 		self.optimizer_encoder_xy_z = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_encoder_xy_z.setup(self.encoder_xy_z)
+		self.optimizer_encoder_xy_z.add_hook(GradientClipping(1.0))
 
 		self.optimizer_encoder_x_y = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_encoder_x_y.setup(self.encoder_x_y)
+		self.optimizer_encoder_x_y.add_hook(GradientClipping(1.0))
 
 		self.optimizer_decoder = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_decoder.setup(self.decoder)
+		self.optimizer_decoder.add_hook(GradientClipping(1.0))
 
 	def build(self, conf):
 		raise Exception()
@@ -195,14 +198,15 @@ class VAE():
 		# Marginalize y
 		loss_lower_bound = 0
 		for n in xrange(num_types_of_label):
-			y_n = xp.zeros((batchsize, num_types_of_label), dtype=xp.float32)
-			y_n[:,n] = 1
-			y_n = Variable(y_n)
-			loss_reconstruction, loss_kld_regularization = self.loss_labeled_keepbatch(unlabeled_x, y_n, L=1, test=test)
+			index = xp.full((batchsize,), n, dtype=xp.int32)
+			index = Variable(index)
+			y = xp.zeros((batchsize, num_types_of_label), dtype=xp.float32)
+			y[:, n] = 1
+			y = Variable(y)
+			loss_reconstruction, loss_kld_regularization = self.loss_labeled_keepbatch(unlabeled_x, y, L=1, test=test)
 			loss_n = loss_reconstruction + loss_kld_regularization
-			mask_n = y_n
-			loss_lower_bound += multiply(mask_n, F.reshape(loss_n, (batchsize, 1)))
-		loss_lower_bound = F.sum(loss_lower_bound * y_expectation) / batchsize
+			loss_lower_bound += F.select_item(y_expectation, index) * loss_n
+		loss_lower_bound = F.sum(loss_lower_bound) / batchsize
 
 		# -H(q(y|x))
 		# Math:
@@ -215,8 +219,8 @@ class VAE():
 		loss_labeled_reconstruction, loss_labeled_kld = self.loss_labeled(labeled_x, labeled_y, L=labeled_L, test=test)
 		loss_labeled = loss_labeled_reconstruction + loss_labeled_kld
 
-		loss_unlabeled_expectation, loss_unlabeled_entropy = self.loss_unlabeled(unlabeled_x, L=unlabeled_L, test=test)
-		loss_unlabeled = loss_unlabeled_expectation + loss_unlabeled_entropy
+		loss_unlabeled_bound, loss_unlabeled_entropy = self.loss_unlabeled(unlabeled_x, L=unlabeled_L, test=test)
+		loss_unlabeled = loss_unlabeled_bound + loss_unlabeled_entropy
 
 		loss = loss_labeled + loss_unlabeled
 
@@ -231,6 +235,9 @@ class VAE():
 
 	def train_classification(self, labeled_x, label_ids, alpha=1.0, test=False):
 		y_distribution = self.encode_x_y(labeled_x, softmax=False, test=test)
+		batchsize = labeled_x.data.shape[0]
+		num_types_of_label = y_distribution.data.shape[1]
+
 		loss_classifier = alpha * F.softmax_cross_entropy(y_distribution, label_ids)
 		self.zero_grads()
 		loss_classifier.backward()
