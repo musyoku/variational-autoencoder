@@ -245,7 +245,7 @@ class VAE():
 		return loss_lower_bound, loss_entropy
 
 	def train(self, labeled_x, labeled_y, label_ids, unlabeled_x, labeled_L=1, unlabeled_L=1, test=False):
-		loss_labeled_reconstruction, loss_labeled_kld = self.loss_labeled(labeled_x, labeled_y, L=labeled_L, test=test)
+		loss_labeled_reconstruction, loss_labeled_kld = self.loss_labeled(labeled_x, labeled_y, label_ids, L=labeled_L, test=test)
 		loss_labeled = loss_labeled_reconstruction + loss_labeled_kld
 
 		loss_unlabeled_bound, loss_unlabeled_entropy = self.loss_unlabeled(unlabeled_x, L=unlabeled_L, test=test)
@@ -482,7 +482,7 @@ class BernoulliM2VAE(VAE):
 			decoder.to_gpu()
 		return encoder_xy_z, encoder_x_y, decoder
 
-	def loss_labeled(self, x, y, L=1, test=False):
+	def loss_labeled(self, x, y, ids, L=1, test=False):
 		# Math:
 		# Loss = -E_{q(z|x,y)}[logp(x|y,z) + logp(y)] + KL(q(z|x,y)||p(z))
 		loss_reconstruction = 0
