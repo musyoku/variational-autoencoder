@@ -11,7 +11,7 @@ conf.encoder_x_y_apply_batchnorm_to_input = False
 conf.encoder_x_y_apply_batchnorm = False
 conf.decoder_apply_batchnorm_to_input = False
 conf.decoder_apply_batchnorm = False
-conf.encoder_xy_z_hidden_units = [600]
-conf.encoder_x_y_hidden_units = [600]
-conf.decoder_hidden_units = [600]
+conf.encoder_xy_z_hidden_units = [500]
+conf.encoder_x_y_hidden_units = [500]
+conf.decoder_hidden_units = [500]
 vae = BernoulliM2VAE(conf, name="m2")
