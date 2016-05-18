@@ -215,6 +215,35 @@ class VAE():
 
 		return loss_lower_bound, loss_entropy
 
+	def loss_unlabeled_fast(self, unlabeled_x, L=1, test=False):
+		# Math:
+		# Loss = -E_{q(y|x)}[-loss_labeled(x, y)] - H(q(y|x))
+		# where H(p) is the Entropy of the p
+		loss_expectation = 0
+		batchsize = unlabeled_x.data.shape[0]
+		xp = self.xp
+		y_expectation = self.encoder_x_y(unlabeled_x, test=test, softmax=True)
+		num_types_of_label = y_expectation.data.shape[1]
+
+		unlabeled_x_ext = xp.zeros((batchsize * num_types_of_label, unlabeled_x.data.shape[1]), dtype=xp.float32)
+		y_ext = xp.zeros((batchsize * num_types_of_label, num_types_of_label), dtype=xp.float32)
+		for n in xrange(num_types_of_label):
+			y_ext[n * batchsize:(n + 1) * batchsize,n] = 1
+			unlabeled_x_ext[n * batchsize:(n + 1) * batchsize] = unlabeled_x.data
+
+		y_ext = Variable(y_ext)
+		unlabeled_x_ext = Variable(unlabeled_x_ext)
+
+		loss_reconstruction, loss_kld_regularization = self.loss_labeled(unlabeled_x_ext, y_ext, L=1, test=test)
+		loss_lower_bound = loss_reconstruction + loss_kld_regularization
+
+		# -H(q(y|x))
+		# Math:
+		# -sum_{y}q(y|x)logq(y|x)
+		loss_entropy = F.sum(y_expectation * F.log(y_expectation + 1e-6)) / batchsize
+
+		return loss_lower_bound, loss_entropy
+
 	def train(self, labeled_x, labeled_y, label_ids, unlabeled_x, labeled_L=1, unlabeled_L=1, test=False):
 		loss_labeled_reconstruction, loss_labeled_kld = self.loss_labeled(labeled_x, labeled_y, L=labeled_L, test=test)
 		loss_labeled = loss_labeled_reconstruction + loss_labeled_kld
