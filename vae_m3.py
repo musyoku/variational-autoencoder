@@ -180,6 +180,13 @@ class VAE():
 		nll = F.softplus(y) - x * y
 		return F.sum(nll, axis=1)
 
+	def gaussian_nll_keepbatch(self, x, mean, ln_var):
+		D = x.data.size
+		x_prec = F.exp(-ln_var)
+		x_diff = x - mean
+		x_power = (x_diff * x_diff) * x_prec * -0.5
+		return (F.sum(ln_var, axis=1) + x.data.shape[1] * math.log(2 * math.pi)) / 2 - F.sum(x_power, axis=1)
+
 	def gaussian_kl_divergence_keepbatch(self, mean, ln_var):
 		var = F.exp(ln_var)
 		kld = (F.sum(mean * mean, axis=1) + F.sum(var, axis=1) - F.sum(ln_var, axis=1) - mean.data.shape[1]) * 0.5
@@ -250,7 +257,8 @@ class VAE():
 			lb = log_px_zy + log_py + log_pz - log_qz_xy
 			return lb
 
-		batchsize = labeled_x.data.shape[0]
+		batchsize_l = labeled_x.data.shape[0]
+		batchsize_u = unlabeled_x.data.shape[0]
 		num_types_of_label = labeled_y.data.shape[1]
 		xp = self.xp
 
@@ -258,29 +266,63 @@ class VAE():
 		z_l = self.encoder_xy_z(labeled_x, labeled_y, test=test)
 		log_px_zy_l = self.log_px_zy(labeled_x, z_l, labeled_y, test=test)
 		log_py_l = self.log_py(labeled_y, test=test)
-		log_pz_l  self.log_pz(z_l, test=test)
+		log_pz_l = self.log_pz(z_l, test=test)
 		log_qz_xy_l = self.log_qz_xy(labeled_x, labeled_y, z_l, test=test)
-		lower_bound_l  lower_bound(log_px_zy_l, log_py_l, log_pz_l, log_qz_xy_l)
+		lower_bound_l = lower_bound(log_px_zy_l, log_py_l, log_pz_l, log_qz_xy_l)
 
 		# Lower bound for unlabeled data
-		# Marginalize y
-		unlabeled_x_ext = xp.zeros((batchsize * num_types_of_label, unlabeled_x.data.shape[1]), dtype=xp.float32)
-		y_ext = xp.zeros((batchsize * num_types_of_label, num_types_of_label), dtype=xp.float32)
+		# To marginalize y, we repeat unlabeled x, and construct a target (batchsize_u * num_types_of_label) x num_types_of_label
+		# Example of input and target matrix for a 3 class problem and batch_size=2.
+		#            unlabeled_x_ext                  y_ext
+		#  [[x[0,0], x[0,1], ..., x[0,n_x]]         [[1, 0, 0]
+		#   [x[1,0], x[1,1], ..., x[1,n_x]]          [1, 0, 0]
+		#   [x[0,0], x[0,1], ..., x[0,n_x]]          [0, 1, 0]
+		#   [x[1,0], x[1,1], ..., x[1,n_x]]          [0, 1, 0]
+		#   [x[0,0], x[0,1], ..., x[0,n_x]]          [0, 0, 1]
+		#   [x[1,0], x[1,1], ..., x[1,n_x]]]         [0, 0, 1]]
+		# We thunk Lars Maaloe for this idea.
+		# See https://github.com/larsmaaloee/auxiliary-deep-generative-models
+
+		unlabeled_x_ext = xp.zeros((batchsize_u * num_types_of_label, unlabeled_x.data.shape[1]), dtype=xp.float32)
+		y_ext = xp.zeros((batchsize_u * num_types_of_label, num_types_of_label), dtype=xp.float32)
 		for n in xrange(num_types_of_label):
-			y_ext[n * batchsize:(n + 1) * batchsize,n] = 1
-			unlabeled_x_ext[n * batchsize:(n + 1) * batchsize] = unlabeled_x.data
+			y_ext[n * batchsize_u:(n + 1) * batchsize_u,n] = 1
+			unlabeled_x_ext[n * batchsize_u:(n + 1) * batchsize_u] = unlabeled_x.data
 		y_ext = Variable(y_ext)
 		unlabeled_x_ext = Variable(unlabeled_x_ext)
 
 		z_u = self.encoder_xy_z(unlabeled_x_ext, y_ext, test=test)
 		log_px_zy_u = self.log_px_zy(unlabeled_x_ext, z_u, y_ext, test=test)
 		log_py_u = self.log_py(y_ext, test=test)
-		log_pz_u  self.log_pz(z_u, test=test)
+		log_pz_u = self.log_pz(z_u, test=test)
 		log_qz_xy_u = self.log_qz_xy(unlabeled_x_ext, y_ext, z_u, test=test)
-		lower_bound_u  lower_bound(log_px_zy_u, log_py_u, log_pz_u, log_qz_xy_u)
+		lower_bound_u = lower_bound(log_px_zy_u, log_py_u, log_pz_u, log_qz_xy_u)
 
-		loss_labeled = -F.sum(lower_bound_l)
-		loss_unlabeled = -F.sum(lower_bound_u)
+		# Entropy
+		y_distribution = self.encoder_x_y(unlabeled_x, test=test, softmax=True)
+		# Original lower_bound_u. (in case of MNIST)
+		# [label_0_0, label_0_1, ..., label_0_batchsize, label_1_0, label_1_1, ..., label_1_batchsize, ...]
+		# 
+		# After reshaping. (axis 2 corresponds to batch)
+		# [[label_0_0, label_0_1, ..., label_0_batchsize],
+		#  [label_1_0, label_1_1, ..., label_1_batchsize],
+		#                           .
+		#                           .
+		#                           .
+		#  [label_9_0, label_9_1, ..., label_9_batchsize]]
+		# 
+		# After transposing (axis 1 corresponds to batch)
+		# [[label_0_0, label_1_0, ..., label_9_0],
+		#  [label_0_1, label_1_1, ..., label_9_1],
+		#                           .
+		#                           .
+		#                           .
+		#  [label_0_batchsize, label_1_batchsize, ..., label_9_batchsize]]
+		lower_bound_u = F.transpose(F.reshape(lower_bound_u, (num_types_of_label, batchsize_u)))
+		lower_bound_u = y_distribution * (lower_bound_u - F.log(y_distribution))
+
+		loss_labeled = -F.sum(lower_bound_l) / batchsize_l
+		loss_unlabeled = -F.sum(lower_bound_u) / batchsize_u
 		loss = loss_labeled + loss_unlabeled
 
 		self.zero_grads()
@@ -330,22 +372,25 @@ class VAE():
 	def log_px_zy(self, x, z, y, test=False):
 		# do not apply F.sigmoid to the output of the decoder
 		x_expectation = self.decoder(z, y, test=test, output_pixel_value=False)
-		negative_log_likelihood = F.bernoulli_nll(x, x_expectation)
+		negative_log_likelihood = self.bernoulli_nll_keepbatch(x, x_expectation)
 		log_px_zy = -negative_log_likelihood
 		return log_px_zy
 
 	def log_py(self, y, test=False):
+		xp = self.xp
 		# prior p(y) expecting that all classes are evenly distributed
-		return math.log(1.0 / y.data.shape[1])
+		constant = math.log(1.0 / y.data.shape[1])
+		log_py = xp.full((y.data.shape[0],), constant, xp.float32)
+		return Variable(log_py)
 
 	def log_pz(self, z, test=False):
 		constant = -0.5 * math.log(2.0 * math.pi)
 		log_pz = constant - 0.5 * z ** 2
-		return log_pz
+		return F.sum(log_pz, axis=1)
 
 	def log_qz_xy(self, x, y, z, test=False):
 		z_mean, z_ln_var = self.encoder_xy_z(x, y, test=test, sample_output=False)
-		negative_log_likelihood = F.gaussian_nll(z, z_mean, z_ln_var)
+		negative_log_likelihood = self.gaussian_nll_keepbatch(z, z_mean, z_ln_var)
 		log_qz_xy = -negative_log_likelihood
 		return log_qz_xy
 

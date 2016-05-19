@@ -253,17 +253,9 @@ class VAE():
 
 		loss = loss_labeled + loss_unlabeled
 
-		x_y = self.xp.copy(self.encoder_x_y.layer_0.W.data[0])
-		xy_z = self.xp.copy(self.encoder_xy_z.layer_mean_0.W.data[0])
-		zy_x = self.xp.copy(self.decoder.layer_0.W.data[0])
-
 		self.zero_grads()
 		loss.backward()
 		self.update()
-
-		# print "x_y", self.xp.sum(x_y - self.encoder_x_y.layer_0.W.data[0])
-		# print "xy_z", self.xp.sum(xy_z - self.encoder_xy_z.layer_mean_0.W.data[0])
-		# print "zy_x", self.xp.sum(zy_x - self.decoder.layer_0.W.data[0])
 
 		if self.gpu:
 			loss_labeled.to_cpu()

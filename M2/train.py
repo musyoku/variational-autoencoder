@@ -12,12 +12,12 @@ dataset, labels = util.load_labeled_images(args.train_image_dir)
 
 max_epoch = 1000
 num_trains_per_epoch = 1000
-batchsize = 100
+batchsize = 2
 
 # Create labeled/unlabeled split in training set
 num_types_of_label = 10
 num_labbeled_data = 100
-num_validation_data = 10000
+num_validation_data = 1000
 labeled_dataset, labels, unlabeled_dataset, validation_dataset, validation_labels = util.create_semisupervised(dataset, labels, num_validation_data, num_labbeled_data, num_types_of_label)
 print "labels:", labels
 alpha = 0.1 * len(unlabeled_dataset)
@@ -32,7 +32,7 @@ for epoch in xrange(max_epoch):
 	epoch_time = time.time()
 	for t in xrange(num_trains_per_epoch):
 		x_labeled, y_labeled, label_ids = util.sample_x_and_label_variables(batchsize, conf.ndim_x, conf.ndim_y, labeled_dataset, labels, use_gpu=conf.use_gpu)
-		x_unlabeled = util.sample_x_variable(10, conf.ndim_x, unlabeled_dataset, use_gpu=conf.use_gpu)
+		x_unlabeled = util.sample_x_variable(batchsize, conf.ndim_x, unlabeled_dataset, use_gpu=conf.use_gpu)
 
 		# train
 		loss_labeled, loss_unlabeled = vae.train(x_labeled, y_labeled, label_ids, x_unlabeled)
