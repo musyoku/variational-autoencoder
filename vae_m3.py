@@ -52,7 +52,7 @@ class Conf():
 		self.decoder_apply_batchnorm_to_input = False
 
 		self.use_gpu = True
-		self.learning_rate = 0.00003
+		self.learning_rate = 0.0003
 		self.gradient_momentum = 0.9
 
 	def check(self):
@@ -129,12 +129,6 @@ class VAE():
 		self.optimizer_encoder_x_y.update()
 		self.optimizer_decoder.update()
 
-	def encode_xy_z(self, x, y, test=False):
-		return self.encoder_xy_z(x, y, test=test)
-
-	def encode_x_y(self, x, test=False, softmax=True):
-		return self.encoder_x_y(x, test=test, softmax=softmax)
-
 	def sample_x_y(self, x, argmax=False, test=False):
 		batchsize = x.data.shape[0]
 		y_distribution = self.encoder_x_y(x, test=test, softmax=True).data
@@ -170,11 +164,7 @@ class VAE():
 			for b in xrange(batchsize):
 				label_id = np.random.choice(labels, p=y_distribution[b])
 				sampled_label[b] = 1
-			
 		return sampled_label
-
-	def decode_zy_x(self, z, y, test=False, output_pixel_value=False):
-		return self.decoder(z, y, test=test, output_pixel_value=output_pixel_value)
 
 	def bernoulli_nll_keepbatch(self, x, y):
 		nll = F.softplus(y) - x * y
@@ -192,64 +182,35 @@ class VAE():
 		kld = (F.sum(mean * mean, axis=1) + F.sum(var, axis=1) - F.sum(ln_var, axis=1) - mean.data.shape[1]) * 0.5
 		return kld
 
-	def loss_unlabeled(self, unlabeled_x, L=1, test=False):
-		# Math:
-		# Loss = -E_{q(y|x)}[-loss_labeled(x, y)] - H(q(y|x))
-		# where H(p) is the Entropy of the p
-		loss_expectation = 0
-		batchsize = unlabeled_x.data.shape[0]
+	def log_px_zy(self, x, z, y, test=False):
+		# do not apply F.sigmoid to the output of the decoder
+		x_expectation = self.decoder(z, y, test=test, output_pixel_value=False)
+		negative_log_likelihood = self.bernoulli_nll_keepbatch(x, x_expectation)
+		log_px_zy = -negative_log_likelihood
+		return log_px_zy
+
+	def log_py(self, y, test=False):
 		xp = self.xp
-		y_expectation = self.encoder_x_y(unlabeled_x, test=test, softmax=True)
-		num_types_of_label = y_expectation.data.shape[1]
+		# prior p(y) expecting that all classes are evenly distributed
+		constant = math.log(1.0 / y.data.shape[1])
+		log_py = xp.full((y.data.shape[0],), constant, xp.float32)
+		return Variable(log_py)
 
-		# Marginalize y
-		loss_lower_bound = 0
-		for n in xrange(num_types_of_label):
-			index = xp.full((batchsize,), n, dtype=xp.int32)
-			index = Variable(index)
-			y = xp.zeros((batchsize, num_types_of_label), dtype=xp.float32)
-			y[:, n] = 1
-			y = Variable(y)
-			loss_reconstruction, loss_kld_regularization = self.loss_labeled_keepbatch(unlabeled_x, y, L=1, test=test)
-			loss_n = loss_reconstruction + loss_kld_regularization
-			loss_lower_bound += F.select_item(y_expectation, index) * loss_n
-		loss_lower_bound = F.sum(loss_lower_bound) / batchsize
+	def log_pz(self, z, test=False):
+		constant = -0.5 * math.log(2.0 * math.pi)
+		log_pz = constant - 0.5 * z ** 2
+		return F.sum(log_pz, axis=1)
 
-		# -H(q(y|x))
-		# Math:
-		# -sum_{y}q(y|x)logq(y|x)
-		loss_entropy = F.sum(y_expectation * F.log(y_expectation + 1e-6)) / batchsize
+	def log_qz_xy(self, x, y, z, test=False):
+		z_mean, z_ln_var = self.encoder_xy_z(x, y, test=test, sample_output=False)
+		negative_log_likelihood = self.gaussian_nll_keepbatch(z, z_mean, z_ln_var)
+		log_qz_xy = -negative_log_likelihood
+		return log_qz_xy
 
-		return loss_lower_bound, loss_entropy
-
-	def loss_unlabeled_fast(self, unlabeled_x, L=1, test=False):
-		# Math:
-		# Loss = -E_{q(y|x)}[-loss_labeled(x, y)] - H(q(y|x))
-		# where H(p) is the Entropy of the p
-		loss_expectation = 0
-		batchsize = unlabeled_x.data.shape[0]
-		xp = self.xp
-		y_expectation = self.encoder_x_y(unlabeled_x, test=test, softmax=True)
-		num_types_of_label = y_expectation.data.shape[1]
-
-		unlabeled_x_ext = xp.zeros((batchsize * num_types_of_label, unlabeled_x.data.shape[1]), dtype=xp.float32)
-		y_ext = xp.zeros((batchsize * num_types_of_label, num_types_of_label), dtype=xp.float32)
-		for n in xrange(num_types_of_label):
-			y_ext[n * batchsize:(n + 1) * batchsize,n] = 1
-			unlabeled_x_ext[n * batchsize:(n + 1) * batchsize] = unlabeled_x.data
-
-		y_ext = Variable(y_ext)
-		unlabeled_x_ext = Variable(unlabeled_x_ext)
-
-		loss_reconstruction, loss_kld_regularization = self.loss_labeled(unlabeled_x_ext, y_ext, L=1, test=test)
-		loss_lower_bound = loss_reconstruction + loss_kld_regularization
-
-		# -H(q(y|x))
-		# Math:
-		# -sum_{y}q(y|x)logq(y|x)
-		loss_entropy = F.sum(y_expectation * F.log(y_expectation + 1e-6)) / batchsize
-
-		return loss_lower_bound, loss_entropy
+	def log_qy_x(self, x, y, test=False):
+		y_expectation = self.encoder_x_y(x, test=False, softmax=True)
+		log_qy_x = y * F.log(y_expectation + 1e-6)
+		return log_qy_x
 
 	def train(self, labeled_x, labeled_y, label_ids, unlabeled_x, labeled_L=1, unlabeled_L=1, test=False):
 
@@ -257,6 +218,8 @@ class VAE():
 			lb = log_px_zy + log_py + log_pz - log_qz_xy
 			return lb
 
+		# _l: labeled
+		# _u: unlabeled
 		batchsize_l = labeled_x.data.shape[0]
 		batchsize_u = unlabeled_x.data.shape[0]
 		num_types_of_label = labeled_y.data.shape[1]
@@ -300,6 +263,7 @@ class VAE():
 
 		# Entropy
 		y_distribution = self.encoder_x_y(unlabeled_x, test=test, softmax=True)
+
 		# Original lower_bound_u. (in case of MNIST)
 		# [label_0_0, label_0_1, ..., label_0_batchsize, label_1_0, label_1_1, ..., label_1_batchsize, ...]
 		# 
@@ -311,7 +275,7 @@ class VAE():
 		#                           .
 		#  [label_9_0, label_9_1, ..., label_9_batchsize]]
 		# 
-		# After transposing (axis 1 corresponds to batch)
+		# After transposing. (axis 1 corresponds to batch)
 		# [[label_0_0, label_1_0, ..., label_9_0],
 		#  [label_0_1, label_1_1, ..., label_9_1],
 		#                           .
@@ -319,7 +283,7 @@ class VAE():
 		#                           .
 		#  [label_0_batchsize, label_1_batchsize, ..., label_9_batchsize]]
 		lower_bound_u = F.transpose(F.reshape(lower_bound_u, (num_types_of_label, batchsize_u)))
-		lower_bound_u = y_distribution * (lower_bound_u - F.log(y_distribution))
+		lower_bound_u = y_distribution * (lower_bound_u - F.log(y_distribution + 1e-6))
 
 		loss_labeled = -F.sum(lower_bound_l) / batchsize_l
 		loss_unlabeled = -F.sum(lower_bound_u) / batchsize_u
@@ -335,7 +299,7 @@ class VAE():
 		return loss_labeled.data, loss_unlabeled.data
 
 	def train_classification(self, labeled_x, label_ids, alpha=1.0, test=False):
-		y_distribution = self.encode_x_y(labeled_x, softmax=False, test=test)
+		y_distribution = self.encoder_x_y(labeled_x, softmax=False, test=test)
 		batchsize = labeled_x.data.shape[0]
 		num_types_of_label = y_distribution.data.shape[1]
 
@@ -346,58 +310,6 @@ class VAE():
 		if self.gpu:
 			loss_classifier.to_cpu()
 		return loss_classifier.data
-
-	def train_supervised(self, labeled_x, labeled_y, alpha, L=1, test=False):
-		loss = self.loss_labeled(labeled_x, labeled_y, alpha, L=L, test=test)
-
-		self.zero_grads()
-		loss.backward()
-		self.update()
-
-		if self.gpu:
-			loss.to_cpu()
-		return loss.data
-
-	def train_unsupervised(self, unlabeled_x, n_labels, L=1, test=False):
-		loss = self.loss_unlabeled(unlabeled_x, n_labels, L=L, test=test)
-
-		self.zero_grads()
-		loss.backward()
-		self.update()
-
-		if self.gpu:
-			loss.to_cpu()
-		return loss.data
-
-	def log_px_zy(self, x, z, y, test=False):
-		# do not apply F.sigmoid to the output of the decoder
-		x_expectation = self.decoder(z, y, test=test, output_pixel_value=False)
-		negative_log_likelihood = self.bernoulli_nll_keepbatch(x, x_expectation)
-		log_px_zy = -negative_log_likelihood
-		return log_px_zy
-
-	def log_py(self, y, test=False):
-		xp = self.xp
-		# prior p(y) expecting that all classes are evenly distributed
-		constant = math.log(1.0 / y.data.shape[1])
-		log_py = xp.full((y.data.shape[0],), constant, xp.float32)
-		return Variable(log_py)
-
-	def log_pz(self, z, test=False):
-		constant = -0.5 * math.log(2.0 * math.pi)
-		log_pz = constant - 0.5 * z ** 2
-		return F.sum(log_pz, axis=1)
-
-	def log_qz_xy(self, x, y, z, test=False):
-		z_mean, z_ln_var = self.encoder_xy_z(x, y, test=test, sample_output=False)
-		negative_log_likelihood = self.gaussian_nll_keepbatch(z, z_mean, z_ln_var)
-		log_qz_xy = -negative_log_likelihood
-		return log_qz_xy
-
-	def log_qy_x(self, x, y, test=False):
-		y_expectation = self.encoder_x_y(x, test=False, softmax=True)
-		log_qy_x = y * F.log(y_expectation + 1e-6)
-		return log_qy_x
 
 	def load(self, dir=None):
 		if dir is None:
@@ -787,31 +699,3 @@ class BernoulliDecoder(SoftmaxEncoder):
 		if output_pixel_value:
 			return F.sigmoid(output)
 		return output
-
-
-class Multiply(function.Function):
-	def check_type_forward(self, in_types):
-		n_in = in_types.size()
-		type_check.expect(n_in == 2)
-		matrix_type, vector_type = in_types
-
-		type_check.expect(
-			matrix_type.dtype == np.float32,
-			vector_type.dtype == np.float32,
-			matrix_type.ndim == 2,
-			vector_type.ndim == 2,
-		)
-
-	def forward(self, inputs):
-		xp = cuda.get_array_module(inputs[0])
-		matrix, vector = inputs
-		output = matrix * vector
-		return output,
-
-	def backward(self, inputs, grad_outputs):
-		xp = cuda.get_array_module(inputs[0])
-		matrix, vector = inputs
-		return grad_outputs[0] * vector, xp.sum(grad_outputs[0] * matrix, axis=1).reshape(-1, 1)
-
-def multiply(matrix, vector):
-	return Multiply()(matrix, vector)

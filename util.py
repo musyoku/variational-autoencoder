@@ -20,7 +20,6 @@ def load_images(image_dir, convert_to_grayscale=True, binarize=False):
 			img = np.asarray(Image.open(StringIO(f.read())).convert("RGB"), dtype=np.float32).transpose(2, 0, 1) / 255.0
 		if binarize:
 			img = preprocessing.binarize(img, threshold=0.5)
-		img = (img - 0.5) / 0.5
 		dataset.append(img)
 		f.close()
 	return dataset
@@ -40,7 +39,6 @@ def load_labeled_images(image_dir, convert_to_grayscale=True, binarize=False):
 			img = np.asarray(Image.open(StringIO(f.read())).convert("RGB"), dtype=np.float32).transpose(2, 0, 1) / 255.0
 		if binarize:
 			img = preprocessing.binarize(img, threshold=0.5)
-		# img = (img - 0.5) / 0.5	
 		dataset.append(img)
 		labels.append(label)
 		f.close()

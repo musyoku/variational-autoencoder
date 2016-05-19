@@ -15,3 +15,4 @@ conf.encoder_xy_z_hidden_units = [500]
 conf.encoder_x_y_hidden_units = [500]
 conf.decoder_hidden_units = [500]
 vae = BernoulliM2VAE(conf, name="m2")
+vae.load(args.model_dir)
