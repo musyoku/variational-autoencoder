@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from args import args
-from vae_m2 import BernoulliM2VAE, GaussianM2VAE, Conf
+from vae_m3 import BernoulliM2VAE, GaussianM2VAE, Conf
 
 conf = Conf()
 conf.use_gpu = False if args.use_gpu == 0 else True

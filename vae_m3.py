@@ -245,25 +245,47 @@ class VAE():
 		return loss_lower_bound, loss_entropy
 
 	def train(self, labeled_x, labeled_y, label_ids, unlabeled_x, labeled_L=1, unlabeled_L=1, test=False):
-		loss_labeled_reconstruction, loss_labeled_kld = self.loss_labeled(labeled_x, labeled_y, L=labeled_L, test=test)
-		loss_labeled = loss_labeled_reconstruction + loss_labeled_kld
 
-		loss_unlabeled_bound, loss_unlabeled_entropy = self.loss_unlabeled_fast(unlabeled_x, L=unlabeled_L, test=test)
-		loss_unlabeled = loss_unlabeled_bound + loss_unlabeled_entropy
+		def lower_bound(log_px_zy, log_py, log_pz, log_qz_xy):
+			lb = log_px_zy + log_py + log_pz - log_qz_xy
+			return lb
 
+		batchsize = labeled_x.data.shape[0]
+		num_types_of_label = labeled_y.data.shape[1]
+		xp = self.xp
+
+		# Lower bound for labeled data
+		z_l = self.encoder_xy_z(labeled_x, labeled_y, test=test)
+		log_px_zy_l = self.log_px_zy(labeled_x, z_l, labeled_y, test=test)
+		log_py_l = self.log_py(labeled_y, test=test)
+		log_pz_l  self.log_pz(z_l, test=test)
+		log_qz_xy_l = self.log_qz_xy(labeled_x, labeled_y, z_l, test=test)
+		lower_bound_l  lower_bound(log_px_zy_l, log_py_l, log_pz_l, log_qz_xy_l)
+
+		# Lower bound for unlabeled data
+		# Marginalize y
+		unlabeled_x_ext = xp.zeros((batchsize * num_types_of_label, unlabeled_x.data.shape[1]), dtype=xp.float32)
+		y_ext = xp.zeros((batchsize * num_types_of_label, num_types_of_label), dtype=xp.float32)
+		for n in xrange(num_types_of_label):
+			y_ext[n * batchsize:(n + 1) * batchsize,n] = 1
+			unlabeled_x_ext[n * batchsize:(n + 1) * batchsize] = unlabeled_x.data
+		y_ext = Variable(y_ext)
+		unlabeled_x_ext = Variable(unlabeled_x_ext)
+
+		z_u = self.encoder_xy_z(unlabeled_x_ext, y_ext, test=test)
+		log_px_zy_u = self.log_px_zy(unlabeled_x_ext, z_u, y_ext, test=test)
+		log_py_u = self.log_py(y_ext, test=test)
+		log_pz_u  self.log_pz(z_u, test=test)
+		log_qz_xy_u = self.log_qz_xy(unlabeled_x_ext, y_ext, z_u, test=test)
+		lower_bound_u  lower_bound(log_px_zy_u, log_py_u, log_pz_u, log_qz_xy_u)
+
+		loss_labeled = -F.sum(lower_bound_l)
+		loss_unlabeled = -F.sum(lower_bound_u)
 		loss = loss_labeled + loss_unlabeled
-
-		x_y = self.xp.copy(self.encoder_x_y.layer_0.W.data[0])
-		xy_z = self.xp.copy(self.encoder_xy_z.layer_mean_0.W.data[0])
-		zy_x = self.xp.copy(self.decoder.layer_0.W.data[0])
 
 		self.zero_grads()
 		loss.backward()
 		self.update()
-
-		# print "x_y", self.xp.sum(x_y - self.encoder_x_y.layer_0.W.data[0])
-		# print "xy_z", self.xp.sum(xy_z - self.encoder_xy_z.layer_mean_0.W.data[0])
-		# print "zy_x", self.xp.sum(zy_x - self.decoder.layer_0.W.data[0])
 
 		if self.gpu:
 			loss_labeled.to_cpu()
@@ -304,6 +326,33 @@ class VAE():
 		if self.gpu:
 			loss.to_cpu()
 		return loss.data
+
+	def log_px_zy(self, x, z, y, test=False):
+		# do not apply F.sigmoid to the output of the decoder
+		x_expectation = self.decoder(z, y, test=test, output_pixel_value=False)
+		negative_log_likelihood = F.bernoulli_nll(x, x_expectation)
+		log_px_zy = -negative_log_likelihood
+		return log_px_zy
+
+	def log_py(self, y, test=False):
+		# prior p(y) expecting that all classes are evenly distributed
+		return math.log(1.0 / y.data.shape[1])
+
+	def log_pz(self, z, test=False):
+		constant = -0.5 * math.log(2.0 * math.pi)
+		log_pz = constant - 0.5 * z ** 2
+		return log_pz
+
+	def log_qz_xy(self, x, y, z, test=False):
+		z_mean, z_ln_var = self.encoder_xy_z(x, y, test=test, sample_output=False)
+		negative_log_likelihood = F.gaussian_nll(z, z_mean, z_ln_var)
+		log_qz_xy = -negative_log_likelihood
+		return log_qz_xy
+
+	def log_qy_x(self, x, y, test=False):
+		y_expectation = self.encoder_x_y(x, test=False, softmax=True)
+		log_qy_x = y * F.log(y_expectation + 1e-6)
+		return log_qy_x
 
 	def load(self, dir=None):
 		if dir is None:
@@ -524,7 +573,6 @@ class BernoulliM2VAE(VAE):
 			z = F.gaussian(z_mean, z_ln_var)
 			# Decode
 			x_expectation = self.decode_zy_x(z, y, test=test)
-			# x is between -1 to 1 so we convert it to be between 0 to 1
 			# logp(y) = log(1/num_labels)
 			reconstuction_loss = self.bernoulli_nll_keepbatch(x, x_expectation) - math.log(1.0 / y.data.shape[1])
 			loss_reconstruction += reconstuction_loss
@@ -691,9 +739,8 @@ class BernoulliDecoder(SoftmaxEncoder):
 
 	def __call__(self, z, y, test=False, output_pixel_value=False):
 		output = self.forward_one_step(z, y, test=test)
-		# Pixel value must be between -1 to 1
 		if output_pixel_value:
-			return (F.sigmoid(output) - 0.5) * 2.0
+			return F.sigmoid(output)
 		return output
 
 
