@@ -79,7 +79,7 @@ for epoch in xrange(max_epoch):
 	x_labeled, _, label_ids = util.sample_x_and_label_variables(num_validation_data, conf1.ndim_x, conf2.ndim_y, validation_dataset, validation_labels, gpu_enabled=False)
 	if conf1.gpu_enabled:
 		x_labeled.to_gpu()
-	z_labeled = vae1.encode(x_labeled, test=True)
+	z_labeled = vae1.encoder(x_labeled, test=True)
 	prediction = vae2.sample_x_label(z_labeled, test=True, argmax=True)
 	correct = 0
 	for i in xrange(num_validation_data):
