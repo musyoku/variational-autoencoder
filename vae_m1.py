@@ -36,7 +36,7 @@ class Conf():
 		self.decoder_apply_batchnorm = False
 		self.decoder_apply_batchnorm_to_input = False
 
-		self.use_gpu = True
+		self.gpu_enabled = True
 		self.learning_rate = 0.00025
 		self.gradient_momentum = 0.95
 
@@ -179,7 +179,7 @@ class GaussianM1VAE(VAE):
 		decoder.apply_batchnorm = conf.decoder_apply_batchnorm
 		decoder.apply_batchnorm_to_input = conf.decoder_apply_batchnorm_to_input
 
-		if conf.use_gpu:
+		if conf.gpu_enabled:
 			encoder.to_gpu()
 			decoder.to_gpu()
 		return encoder, decoder
@@ -241,7 +241,7 @@ class BernoulliM1VAE(VAE):
 		decoder.apply_batchnorm = conf.decoder_apply_batchnorm
 		decoder.apply_batchnorm_to_input = conf.decoder_apply_batchnorm_to_input
 
-		if conf.use_gpu:
+		if conf.gpu_enabled:
 			encoder.to_gpu()
 			decoder.to_gpu()
 		return encoder, decoder

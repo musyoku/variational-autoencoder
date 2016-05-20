@@ -13,8 +13,8 @@ dataset, labels = util.load_labeled_images(args.test_image_dir)
 
 def validate_x_label():
 	num_validation = 1000
-	x_labeled, _, label_ids = util.sample_x_and_label_variables(num_validation, conf1.ndim_x, conf2.ndim_y, dataset, labels, use_gpu=False)
-	if conf1.use_gpu:
+	x_labeled, _, label_ids = util.sample_x_and_label_variables(num_validation, conf1.ndim_x, conf2.ndim_y, dataset, labels, gpu_enabled=False)
+	if conf1.gpu_enabled:
 		x_labeled.to_gpu()
 	z_labeled = vae1.encode(x_labeled, test=True)
 	prediction = vae2.sample_x_label(z_labeled, test=True, argmax=True)

@@ -102,7 +102,7 @@ def create_semisupervised(dataset, labels, num_validation_data=10000, num_labele
 
 	return training_labeled_x, training_labels, training_unlabeled_x, validation_x, validation_labels
 
-def sample_x_variable(batchsize, ndim_x, dataset, use_gpu=True):
+def sample_x_variable(batchsize, ndim_x, dataset, gpu_enabled=True):
 	x_batch = np.zeros((batchsize, ndim_x), dtype=np.float32)
 	indices = np.random.choice(np.arange(len(dataset), dtype=np.int32), size=batchsize, replace=False)
 	for j in range(batchsize):
@@ -110,11 +110,11 @@ def sample_x_variable(batchsize, ndim_x, dataset, use_gpu=True):
 		img = dataset[data_index]
 		x_batch[j] = img.reshape((ndim_x,))
 	x_batch = Variable(x_batch)
-	if use_gpu:
+	if gpu_enabled:
 		x_batch.to_gpu()
 	return x_batch
 
-def sample_x_and_label_variables(batchsize, ndim_x, ndim_y, dataset, labels, use_gpu=True):
+def sample_x_and_label_variables(batchsize, ndim_x, ndim_y, dataset, labels, gpu_enabled=True):
 	x_batch = np.zeros((batchsize, ndim_x), dtype=np.float32)
 	# one-hot
 	y_batch = np.zeros((batchsize, ndim_y), dtype=np.float32)
@@ -130,7 +130,7 @@ def sample_x_and_label_variables(batchsize, ndim_x, ndim_y, dataset, labels, use
 	x_batch = Variable(x_batch)
 	y_batch = Variable(y_batch)
 	label_batch = Variable(label_batch)
-	if use_gpu:
+	if gpu_enabled:
 		x_batch.to_gpu()
 		y_batch.to_gpu()
 		label_batch.to_gpu()
@@ -176,7 +176,7 @@ def visualize_z(z_batch, dir=None):
 def visualize_walkthrough():
 	x_batch = sample_x_from_data_distribution(20)
 	z_batch = gen(x_batch, test=True)
-	if use_gpu:
+	if gpu_enabled:
 		z_batch.to_cpu()
 
 	fig = pylab.gcf()
@@ -190,10 +190,10 @@ def visualize_walkthrough():
 	for col in range(10):
 		_z_batch = z_a * (1 - col / 9.0) + z_b * col / 9.0
 		_z_batch = Variable(_z_batch)
-		if use_gpu:
+		if gpu_enabled:
 			_z_batch.to_gpu()
 		_x_batch = dec(_z_batch, test=True)
-		if use_gpu:
+		if gpu_enabled:
 			_x_batch.to_cpu()
 		for row in range(10):
 			pylab.subplot(10, 10, row * 10 + col + 1)

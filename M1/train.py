@@ -19,7 +19,7 @@ for epoch in xrange(max_epoch):
 	sum_loss = 0
 	epoch_time = time.time()
 	for t in xrange(num_trains_per_epoch):
-		x = util.sample_x_variable(batchsize, conf.ndim_x, dataset, use_gpu=conf.use_gpu)
+		x = util.sample_x_variable(batchsize, conf.ndim_x, dataset, gpu_enabled=conf.gpu_enabled)
 		loss = vae.train(x)
 		sum_loss += loss
 		if t % 100 == 0:

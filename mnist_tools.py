@@ -36,7 +36,6 @@ def load_mnist(data_filename, label_filename, num):
 
 	return data, label
 
-
 def download_mnist_data():
 	print("Downloading {:s}...".format(train_images_filename))
 	request.urlretrieve("{:s}/{:s}".format(parent, train_images_filename), train_images_filename)

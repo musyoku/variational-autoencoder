@@ -16,10 +16,10 @@ except:
 vae.load(args.model_dir)
 dataset = util.load_images(args.test_image_dir)
 num_images = 100
-x = util.sample_x_variable(num_images, conf.ndim_x, dataset, use_gpu=conf.use_gpu)
+x = util.sample_x_variable(num_images, conf.ndim_x, dataset, gpu_enabled=conf.gpu_enabled)
 z = vae.encode(x, test=True)
 _x = vae.decode(z, test=True, output_pixel_value=True)
-if conf.use_gpu:
+if conf.gpu_enabled:
 	z.to_cpu()
 	_x.to_cpu()
 util.visualize_x(_x.data, dir=args.vis_dir)

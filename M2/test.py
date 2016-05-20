@@ -10,8 +10,8 @@ from model import conf, vae
 dataset, labels = util.load_labeled_images(args.test_image_dir)
 num_data = len(dataset)
 
-x_labeled, _, label_ids = util.sample_x_and_label_variables(num_data, conf.ndim_x, conf.ndim_y, dataset, labels, use_gpu=False)
-if conf.use_gpu:
+x_labeled, _, label_ids = util.sample_x_and_label_variables(num_data, conf.ndim_x, conf.ndim_y, dataset, labels, gpu_enabled=False)
+if conf.gpu_enabled:
 	x_labeled.to_gpu()
 prediction = vae.sample_x_label(x_labeled, test=True, argmax=True)
 correct = 0

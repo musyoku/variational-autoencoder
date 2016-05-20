@@ -18,13 +18,13 @@ vae2.load(args.model_dir)
 dataset = util.load_images(args.test_image_dir)
 
 num_images = 100
-x = util.sample_x_variable(num_images, conf1.ndim_x, dataset, use_gpu=conf1.use_gpu)
+x = util.sample_x_variable(num_images, conf1.ndim_x, dataset, gpu_enabled=conf1.gpu_enabled)
 z1 = vae1.encode(x, test=True)
 y = vae2.encode_x_y(z1, test=True)
 z2 = vae2.encode_xy_z(z1, y, test=True)
 _z1 = vae2.decode_zy_x(z2, y, test=True, output_pixel_value=True)
 _x = vae1.decode(_z1, test=True)
-if conf1.use_gpu:
+if conf1.gpu_enabled:
 	z2.to_cpu()
 	_x.to_cpu()
 util.visualize_x(_x.data, dir=args.vis_dir)

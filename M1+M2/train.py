@@ -31,7 +31,7 @@ for epoch in xrange(max_epoch):
 	sum_loss = 0
 	epoch_time = time.time()
 	for t in xrange(num_trains_per_epoch):
-		x = util.sample_x_variable(batchsize, conf1.ndim_x, dataset, use_gpu=conf1.use_gpu)
+		x = util.sample_x_variable(batchsize, conf1.ndim_x, dataset, gpu_enabled=conf1.gpu_enabled)
 
 		# train
 		loss = vae1.train(x, L=1)
@@ -53,8 +53,8 @@ for epoch in xrange(max_epoch):
 	sum_loss_classifier = 0
 	epoch_time = time.time()
 	for t in xrange(num_trains_per_epoch):
-		x_labeled, y_labeled, label_ids = util.sample_x_and_label_variables(batchsize, conf1.ndim_x, conf2.ndim_y, labeled_dataset, labels, use_gpu=conf2.use_gpu)
-		x_unlabeled = util.sample_x_variable(batchsize, conf1.ndim_x, unlabeled_dataset, use_gpu=conf2.use_gpu)
+		x_labeled, y_labeled, label_ids = util.sample_x_and_label_variables(batchsize, conf1.ndim_x, conf2.ndim_y, labeled_dataset, labels, gpu_enabled=conf2.gpu_enabled)
+		x_unlabeled = util.sample_x_variable(batchsize, conf1.ndim_x, unlabeled_dataset, gpu_enabled=conf2.gpu_enabled)
 		z_labeled = Variable(vae1.encode(x_labeled, test=True).data)
 		z_unlabeled = Variable(vae1.encode(x_unlabeled, test=True).data)
 
@@ -76,8 +76,8 @@ for epoch in xrange(max_epoch):
 	vae2.save(args.model_dir)
 
 	# validation
-	x_labeled, _, label_ids = util.sample_x_and_label_variables(num_validation_data, conf1.ndim_x, conf2.ndim_y, validation_dataset, validation_labels, use_gpu=False)
-	if conf1.use_gpu:
+	x_labeled, _, label_ids = util.sample_x_and_label_variables(num_validation_data, conf1.ndim_x, conf2.ndim_y, validation_dataset, validation_labels, gpu_enabled=False)
+	if conf1.gpu_enabled:
 		x_labeled.to_gpu()
 	z_labeled = vae1.encode(x_labeled, test=True)
 	prediction = vae2.sample_x_label(z_labeled, test=True, argmax=True)
