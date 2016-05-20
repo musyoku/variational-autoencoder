@@ -108,15 +108,6 @@ class VAE():
 		self.optimizer_encoder.update()
 		self.optimizer_decoder.update()
 
-	def encode(self, x, test=False):
-		return self.encoder(x, test=test)
-
-	def decode(self, z, test=False, output_pixel_value=True):
-		return self.decoder(z, test=test, output_pixel_value=output_pixel_value)
-
-	def __call__(self, x, test=False, output_pixel_value=True):
-		return self.decoder(self.encoder(x, test=test), test=test, output_pixel_value=True)
-
 	def load(self, dir=None):
 		if dir is None:
 			raise Exception()
@@ -246,9 +237,6 @@ class BernoulliM1VAE(VAE):
 			decoder.to_gpu()
 		return encoder, decoder
 
-	def decode(self, z, test=False, output_pixel_value=False):
-		return self.decoder(z, test=test, output_pixel_value=output_pixel_value)
-
 	def train(self, x, L=1, test=False):
 		z_mean, z_ln_var = self.encoder(x, test=test, sample_output=False)
 		loss = 0
@@ -293,6 +281,7 @@ class Encoder(chainer.Chain):
 
 		# Hidden
 		for i in range(self.n_layers):
+			# mean
 			u = chain_mean[-1]
 			if i == 0:
 				if self.apply_batchnorm_to_input:
@@ -309,6 +298,7 @@ class Encoder(chainer.Chain):
 					output = F.dropout(output, train=not test)
 			chain_mean.append(output)
 
+			# var
 			u = chain_variance[-1]
 			if i == 0:
 				if self.apply_batchnorm_to_input:
@@ -359,7 +349,7 @@ class BernoulliDecoder(chainer.Chain):
 	def xp(self):
 		return np if self._cpu else cuda.cupy
 
-	def forward_one_step(self, x, test=False, output_pixel_value=False):
+	def forward_one_step(self, x, test=False):
 		f = activations[self.activation_function]
 		chain = [x]
 
@@ -381,10 +371,10 @@ class BernoulliDecoder(chainer.Chain):
 					output = F.dropout(output, train=not test)
 			chain.append(output)
 
-		if output_pixel_value:
-			return F.sigmoid(chain[-1])
-
 		return chain[-1]
 
 	def __call__(self, x, test=False, output_pixel_value=False):
-		return self.forward_one_step(x, test=test, output_pixel_value=output_pixel_value)
+		output = self.forward_one_step(x, test=test)
+		if output_pixel_value:
+			return F.sigmoid(output)
+		return output

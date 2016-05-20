@@ -227,7 +227,7 @@ class VAE():
 		log_qy_x = y * F.log(y_expectation + 1e-6)
 		return log_qy_x
 
-	def train(self, labeled_x, labeled_y, label_ids, unlabeled_x, labeled_L=1, unlabeled_L=1, test=False):
+	def train(self, labeled_x, labeled_y, label_ids, unlabeled_x, test=False):
 
 		def lower_bound(log_px_zy, log_py, log_pz, log_qz_xy):
 			lb = log_px_zy + log_py + log_pz - log_qz_xy

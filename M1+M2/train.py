@@ -55,11 +55,11 @@ for epoch in xrange(max_epoch):
 	for t in xrange(num_trains_per_epoch):
 		x_labeled, y_labeled, label_ids = util.sample_x_and_label_variables(batchsize, conf1.ndim_x, conf2.ndim_y, labeled_dataset, labels, gpu_enabled=conf2.gpu_enabled)
 		x_unlabeled = util.sample_x_variable(batchsize, conf1.ndim_x, unlabeled_dataset, gpu_enabled=conf2.gpu_enabled)
-		z_labeled = Variable(vae1.encode(x_labeled, test=True).data)
-		z_unlabeled = Variable(vae1.encode(x_unlabeled, test=True).data)
+		z_labeled = Variable(vae1.encoder(x_labeled, test=True, sample_output=True).data)
+		z_unlabeled = Variable(vae1.encoder(x_unlabeled, test=True, sample_output=True).data)
 
 		# train
-		loss_labeled, loss_unlabeled = vae2.train(z_labeled, y_labeled, label_ids, z_unlabeled, labeled_L=1, unlabeled_L=1)
+		loss_labeled, loss_unlabeled = vae2.train(z_labeled, y_labeled, label_ids, z_unlabeled)
 		loss_classifier = vae2.train_classification(z_labeled, label_ids, alpha=alpha)
 		
 		sum_loss_labeled += loss_labeled
