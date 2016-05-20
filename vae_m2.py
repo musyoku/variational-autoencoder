@@ -142,7 +142,6 @@ class VAE():
 	def sample_x_y(self, x, argmax=False, test=False):
 		batchsize = x.data.shape[0]
 		y_distribution = self.encoder_x_y(x, test=test, softmax=True).data
-		print y_distribution
 		n_labels = y_distribution.shape[1]
 		if self.gpu:
 			y_distribution = cuda.to_cpu(y_distribution)

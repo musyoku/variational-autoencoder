@@ -18,9 +18,9 @@ dataset = util.load_images(args.test_image_dir)
 
 num_images = 100
 x = util.sample_x_variable(num_images, conf.ndim_x, dataset, gpu_enabled=conf.gpu_enabled)
-y = vae.encode_x_y(x, test=True)
-z = vae.encode_xy_z(x, y, test=True)
-_x = vae.decode_zy_x(z, y, test=True, output_pixel_value=True)
+y = vae.sample_x_y(x, test=True)
+z = vae.encoder_xy_z(x, y, test=True)
+_x = vae.decode_zy_x(z, y, test=True)
 if conf.gpu_enabled:
 	z.to_cpu()
 	_x.to_cpu()
