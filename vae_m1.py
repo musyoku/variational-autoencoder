@@ -26,14 +26,12 @@ class Conf():
 		# encoder_hidden_units = [2000, 1000]
 		self.encoder_hidden_units = [600, 600]
 		self.encoder_activation_function = "softplus"
-		self.encoder_output_activation_function = None
 		self.encoder_apply_dropout = False
 		self.encoder_apply_batchnorm = False
 		self.encoder_apply_batchnorm_to_input = False
 
 		self.decoder_hidden_units = [600, 600]
 		self.decoder_activation_function = "softplus"
-		self.decoder_output_activation_function = None	# this will be ignored when decoder is BernoulliDecoder
 		self.decoder_apply_dropout = False
 		self.decoder_apply_batchnorm = False
 		self.decoder_apply_batchnorm_to_input = False
@@ -161,7 +159,6 @@ class GaussianM1VAE(VAE):
 		encoder = Encoder(**encoder_attributes)
 		encoder.n_layers = len(encoder_units)
 		encoder.activation_function = conf.encoder_activation_function
-		encoder.output_activation_function = conf.encoder_output_activation_function
 		encoder.apply_dropout = conf.encoder_apply_dropout
 		encoder.apply_batchnorm = conf.encoder_apply_batchnorm
 		encoder.apply_batchnorm_to_input = conf.encoder_apply_batchnorm_to_input
@@ -178,7 +175,6 @@ class GaussianM1VAE(VAE):
 		decoder = GaussianDecoder(**decoder_attributes)
 		decoder.n_layers = len(decoder_units)
 		decoder.activation_function = conf.decoder_activation_function
-		decoder.output_activation_function = conf.decoder_output_activation_function
 		decoder.apply_dropout = conf.decoder_apply_dropout
 		decoder.apply_batchnorm = conf.decoder_apply_batchnorm
 		decoder.apply_batchnorm_to_input = conf.decoder_apply_batchnorm_to_input
@@ -227,7 +223,6 @@ class BernoulliM1VAE(VAE):
 		encoder = Encoder(**encoder_attributes)
 		encoder.n_layers = len(encoder_units)
 		encoder.activation_function = conf.encoder_activation_function
-		encoder.output_activation_function = conf.encoder_output_activation_function
 		encoder.apply_dropout = conf.encoder_apply_dropout
 		encoder.apply_batchnorm = conf.encoder_apply_batchnorm
 		encoder.apply_batchnorm_to_input = conf.encoder_apply_batchnorm_to_input
@@ -242,7 +237,6 @@ class BernoulliM1VAE(VAE):
 		decoder = BernoulliDecoder(**decoder_attributes)
 		decoder.n_layers = len(decoder_units)
 		decoder.activation_function = conf.decoder_activation_function
-		decoder.output_activation_function = conf.decoder_output_activation_function
 		decoder.apply_dropout = conf.decoder_apply_dropout
 		decoder.apply_batchnorm = conf.decoder_apply_batchnorm
 		decoder.apply_batchnorm_to_input = conf.decoder_apply_batchnorm_to_input
@@ -264,8 +258,7 @@ class BernoulliM1VAE(VAE):
 			# Decode
 			x_expectation = self.decoder(z, test=test)
 			# Approximation of E_q(z|x)[log(p(x|z))]
-			# x is between -1 to 1 so we convert it to be between 0 to 1
-			reconstuction_loss = F.bernoulli_nll((x + 1.0) / 2.0, x_expectation)
+			reconstuction_loss = F.bernoulli_nll(x, x_expectation)
 			loss += reconstuction_loss
 		loss /= L * x.data.shape[0]
 		# KL divergence
@@ -283,8 +276,7 @@ class BernoulliM1VAE(VAE):
 class Encoder(chainer.Chain):
 	def __init__(self, **layers):
 		super(Encoder, self).__init__(**layers)
-		self.activation_function = "tanh"
-		self.output_activation_function = None
+		self.activation_function = "softplus"
 		self.apply_batchnorm_to_input = True
 		self.apply_batchnorm = True
 		self.apply_dropout = True
@@ -310,10 +302,7 @@ class Encoder(chainer.Chain):
 					u = getattr(self, "batchnorm_mean_%d" % i)(u, test=test)
 			u = getattr(self, "layer_mean_%i" % i)(u)
 			if i == self.n_layers - 1:
-				if self.output_activation_function is None:
-					output = u
-				else:
-					output = activations[self.output_activation_function](u)
+				output = u
 			else:
 				output = f(u)
 				if self.apply_dropout:
@@ -329,10 +318,7 @@ class Encoder(chainer.Chain):
 					u = getattr(self, "batchnorm_var_%i" % i)(u, test=test)
 			u = getattr(self, "layer_var_%i" % i)(u)
 			if i == self.n_layers - 1:
-				if self.output_activation_function is None:
-					output = u
-				else:
-					output = activations[self.output_activation_function](u)
+				output = u
 			else:
 				output = f(u)
 				if self.apply_dropout:
@@ -395,9 +381,8 @@ class BernoulliDecoder(chainer.Chain):
 					output = F.dropout(output, train=not test)
 			chain.append(output)
 
-		# Pixel value must be between -1 to 1
 		if output_pixel_value:
-			return (F.sigmoid(chain[-1]) - 0.5) * 2.0
+			return F.sigmoid(chain[-1])
 
 		return chain[-1]
 

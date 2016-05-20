@@ -29,14 +29,12 @@ class Conf():
 		# encoder_xy_z_hidden_units = [2000, 1000]
 		self.encoder_xy_z_hidden_units = [600, 600]
 		self.encoder_xy_z_activation_function = "softplus"
-		self.encoder_xy_z_output_activation_function = None
 		self.encoder_xy_z_apply_dropout = False
 		self.encoder_xy_z_apply_batchnorm = False
 		self.encoder_xy_z_apply_batchnorm_to_input = False
 
 		self.encoder_x_y_hidden_units = [600, 600]
 		self.encoder_x_y_activation_function = "softplus"
-		self.encoder_x_y_output_activation_function = None
 		self.encoder_x_y_apply_dropout = False
 		self.encoder_x_y_apply_batchnorm = False
 		self.encoder_x_y_apply_batchnorm_to_input = False
@@ -46,13 +44,12 @@ class Conf():
 		# decoder_hidden_units = [2000, 1000]
 		self.decoder_hidden_units = [600, 600]
 		self.decoder_activation_function = "softplus"
-		self.decoder_output_activation_function = None	# this will be ignored when decoder is BernoulliDecoder
 		self.decoder_apply_dropout = False
 		self.decoder_apply_batchnorm = False
 		self.decoder_apply_batchnorm_to_input = False
 
 		self.use_gpu = True
-		self.learning_rate = 0.00003
+		self.learning_rate = 0.0003
 		self.gradient_momentum = 0.9
 
 	def check(self):
@@ -129,11 +126,18 @@ class VAE():
 		self.optimizer_encoder_x_y.update()
 		self.optimizer_decoder.update()
 
-	def encode_xy_z(self, x, y, test=False):
-		return self.encoder_xy_z(x, y, test=test)
+	def encode_x_z(self, x, test=False):
+		y = self.sample_x_y(x, argmax=False, test=test)
+		z = self.encoder_xy_z(x, y, test=test)
+		return z
 
-	def encode_x_y(self, x, test=False, softmax=True):
-		return self.encoder_x_y(x, test=test, softmax=softmax)
+	def encode_xy_z(self, x, test=False):
+		z = self.encoder_xy_z(x, y, test=test)
+		return z
+
+	def decode_zy_x(self, z, y, test=False):
+		x = self.decoder(z, y, test=False, output_pixel_value=True)
+		return x
 
 	def sample_x_y(self, x, argmax=False, test=False):
 		batchsize = x.data.shape[0]
@@ -170,87 +174,137 @@ class VAE():
 			for b in xrange(batchsize):
 				label_id = np.random.choice(labels, p=y_distribution[b])
 				sampled_label[b] = 1
-			
 		return sampled_label
-
-	def decode_zy_x(self, z, y, test=False, output_pixel_value=False):
-		return self.decoder(z, y, test=test, output_pixel_value=output_pixel_value)
 
 	def bernoulli_nll_keepbatch(self, x, y):
 		nll = F.softplus(y) - x * y
 		return F.sum(nll, axis=1)
+
+	def gaussian_nll_keepbatch(self, x, mean, ln_var):
+		D = x.data.size
+		x_prec = F.exp(-ln_var)
+		x_diff = x - mean
+		x_power = (x_diff * x_diff) * x_prec * -0.5
+		return (F.sum(ln_var, axis=1) + x.data.shape[1] * math.log(2 * math.pi)) / 2 - F.sum(x_power, axis=1)
 
 	def gaussian_kl_divergence_keepbatch(self, mean, ln_var):
 		var = F.exp(ln_var)
 		kld = (F.sum(mean * mean, axis=1) + F.sum(var, axis=1) - F.sum(ln_var, axis=1) - mean.data.shape[1]) * 0.5
 		return kld
 
-	def loss_unlabeled(self, unlabeled_x, L=1, test=False):
-		# Math:
-		# Loss = -E_{q(y|x)}[-loss_labeled(x, y)] - H(q(y|x))
-		# where H(p) is the Entropy of the p
-		loss_expectation = 0
-		batchsize = unlabeled_x.data.shape[0]
+	def log_px_zy(self, x, z, y, test=False):
+		if isinstance(self.decoder, BernoulliDecoder):
+			# do not apply F.sigmoid to the output of the decoder
+			x_expectation = self.decoder(z, y, test=test, output_pixel_value=False)
+			negative_log_likelihood = self.bernoulli_nll_keepbatch(x, x_expectation)
+			log_px_zy = -negative_log_likelihood
+		else:
+			x_mean, x_ln_var = self.decoder(z, y, test=test, output_pixel_value=False)
+			negative_log_likelihood = self.gaussian_nll_keepbatch(x, x_mean, x_ln_var)
+			log_px_zy = -negative_log_likelihood
+		return log_px_zy
+
+	def log_py(self, y, test=False):
 		xp = self.xp
-		y_expectation = self.encoder_x_y(unlabeled_x, test=test, softmax=True)
-		num_types_of_label = y_expectation.data.shape[1]
+		# prior p(y) expecting that all classes are evenly distributed
+		constant = math.log(1.0 / y.data.shape[1])
+		log_py = xp.full((y.data.shape[0],), constant, xp.float32)
+		return Variable(log_py)
 
-		# Marginalize y
-		loss_lower_bound = 0
-		for n in xrange(num_types_of_label):
-			index = xp.full((batchsize,), n, dtype=xp.int32)
-			index = Variable(index)
-			y = xp.zeros((batchsize, num_types_of_label), dtype=xp.float32)
-			y[:, n] = 1
-			y = Variable(y)
-			loss_reconstruction, loss_kld_regularization = self.loss_labeled_keepbatch(unlabeled_x, y, L=1, test=test)
-			loss_n = loss_reconstruction + loss_kld_regularization
-			loss_lower_bound += F.select_item(y_expectation, index) * loss_n
-		loss_lower_bound = F.sum(loss_lower_bound) / batchsize
+	def log_pz(self, z, test=False):
+		constant = -0.5 * math.log(2.0 * math.pi)
+		log_pz = constant - 0.5 * z ** 2
+		return F.sum(log_pz, axis=1)
 
-		# -H(q(y|x))
-		# Math:
-		# -sum_{y}q(y|x)logq(y|x)
-		loss_entropy = F.sum(y_expectation * F.log(y_expectation + 1e-6)) / batchsize
+	def log_qz_xy(self, x, y, z, test=False):
+		z_mean, z_ln_var = self.encoder_xy_z(x, y, test=test, sample_output=False)
+		negative_log_likelihood = self.gaussian_nll_keepbatch(z, z_mean, z_ln_var)
+		log_qz_xy = -negative_log_likelihood
+		return log_qz_xy
 
-		return loss_lower_bound, loss_entropy
+	def log_qy_x(self, x, y, test=False):
+		y_expectation = self.encoder_x_y(x, test=False, softmax=True)
+		log_qy_x = y * F.log(y_expectation + 1e-6)
+		return log_qy_x
 
-	def loss_unlabeled_fast(self, unlabeled_x, L=1, test=False):
-		# Math:
-		# Loss = -E_{q(y|x)}[-loss_labeled(x, y)] - H(q(y|x))
-		# where H(p) is the Entropy of the p
-		loss_expectation = 0
-		batchsize = unlabeled_x.data.shape[0]
+	def train(self, labeled_x, labeled_y, label_ids, unlabeled_x, labeled_L=1, unlabeled_L=1, test=False):
+
+		def lower_bound(log_px_zy, log_py, log_pz, log_qz_xy):
+			lb = log_px_zy + log_py + log_pz - log_qz_xy
+			return lb
+
+		# _l: labeled
+		# _u: unlabeled
+		batchsize_l = labeled_x.data.shape[0]
+		batchsize_u = unlabeled_x.data.shape[0]
+		num_types_of_label = labeled_y.data.shape[1]
 		xp = self.xp
-		y_expectation = self.encoder_x_y(unlabeled_x, test=test, softmax=True)
-		num_types_of_label = y_expectation.data.shape[1]
 
-		unlabeled_x_ext = xp.zeros((batchsize * num_types_of_label, unlabeled_x.data.shape[1]), dtype=xp.float32)
-		y_ext = xp.zeros((batchsize * num_types_of_label, num_types_of_label), dtype=xp.float32)
+		### Lower bound for labeled data ###
+		# Compute eq.6 -L(x,y)
+		z_l = self.encoder_xy_z(labeled_x, labeled_y, test=test)
+		log_px_zy_l = self.log_px_zy(labeled_x, z_l, labeled_y, test=test)
+		log_py_l = self.log_py(labeled_y, test=test)
+		log_pz_l = self.log_pz(z_l, test=test)
+		log_qz_xy_l = self.log_qz_xy(labeled_x, labeled_y, z_l, test=test)
+		lower_bound_l = lower_bound(log_px_zy_l, log_py_l, log_pz_l, log_qz_xy_l)
+
+		### Lower bound for unlabeled data ###
+		# To marginalize y, we repeat unlabeled x, and construct a target (batchsize_u * num_types_of_label) x num_types_of_label
+		# Example of input and target matrix for a 3 class problem and batch_size=2.
+		#            unlabeled_x_ext                  y_ext
+		#  [[x[0,0], x[0,1], ..., x[0,n_x]]         [[1, 0, 0]
+		#   [x[1,0], x[1,1], ..., x[1,n_x]]          [1, 0, 0]
+		#   [x[0,0], x[0,1], ..., x[0,n_x]]          [0, 1, 0]
+		#   [x[1,0], x[1,1], ..., x[1,n_x]]          [0, 1, 0]
+		#   [x[0,0], x[0,1], ..., x[0,n_x]]          [0, 0, 1]
+		#   [x[1,0], x[1,1], ..., x[1,n_x]]]         [0, 0, 1]]
+		# We thunk Lars Maaloe for this idea.
+		# See https://github.com/larsmaaloee/auxiliary-deep-generative-models
+
+		unlabeled_x_ext = xp.zeros((batchsize_u * num_types_of_label, unlabeled_x.data.shape[1]), dtype=xp.float32)
+		y_ext = xp.zeros((batchsize_u * num_types_of_label, num_types_of_label), dtype=xp.float32)
 		for n in xrange(num_types_of_label):
-			y_ext[n * batchsize:(n + 1) * batchsize,n] = 1
-			unlabeled_x_ext[n * batchsize:(n + 1) * batchsize] = unlabeled_x.data
-
+			y_ext[n * batchsize_u:(n + 1) * batchsize_u,n] = 1
+			unlabeled_x_ext[n * batchsize_u:(n + 1) * batchsize_u] = unlabeled_x.data
 		y_ext = Variable(y_ext)
 		unlabeled_x_ext = Variable(unlabeled_x_ext)
 
-		loss_reconstruction, loss_kld_regularization = self.loss_labeled(unlabeled_x_ext, y_ext, L=1, test=test)
-		loss_lower_bound = loss_reconstruction + loss_kld_regularization
+		# Compute eq.6 -L(x,y) for unlabeled data
+		z_u = self.encoder_xy_z(unlabeled_x_ext, y_ext, test=test)
+		log_px_zy_u = self.log_px_zy(unlabeled_x_ext, z_u, y_ext, test=test)
+		log_py_u = self.log_py(y_ext, test=test)
+		log_pz_u = self.log_pz(z_u, test=test)
+		log_qz_xy_u = self.log_qz_xy(unlabeled_x_ext, y_ext, z_u, test=test)
+		lower_bound_u = lower_bound(log_px_zy_u, log_py_u, log_pz_u, log_qz_xy_u)
 
-		# -H(q(y|x))
-		# Math:
-		# -sum_{y}q(y|x)logq(y|x)
-		loss_entropy = F.sum(y_expectation * F.log(y_expectation + 1e-6)) / batchsize
+		# Compute eq.7 sum_y{q(y|x){-L(x,y) + H(q(y|x))}}
+		# LB(x, y) represents lower bound for an input image x and a label y (y = 0, 1, ..., 9)
+		# 
+		# lower_bound_u is a vector contains...
+		# [LB(x0,0), LB(x1,0), ..., LB(x_n,0), LB(x0,1), LB(x1,1), ..., LB(x_n,1), ..., LB(x0,9), LB(x1,9), ..., LB(x_n,9)]
+		# 
+		# After reshaping. (axis 1 corresponds to label, axis 2 corresponds to batch)
+		# [[LB(x0,0), LB(x1,0), ..., LB(x_n,0)],
+		#  [LB(x0,1), LB(x1,1), ..., LB(x_n,1)],
+		#                           .
+		#                           .
+		#                           .
+		#  [LB(x0,9), LB(x1,9), ..., LB(x_n,9)]]
+		# 
+		# After transposing. (axis 1 corresponds to batch)
+		# [[LB(x0,0), LB(x0,1), ..., LB(x0,9)],
+		#  [LB(x1,0), LB(x1,1), ..., LB(x1,9)],
+		#                           .
+		#                           .
+		#                           .
+		#  [LB(x_n,0), LB(x_n,1), ..., LB(x_n,9)]]
+		y_distribution = self.encoder_x_y(unlabeled_x, test=test, softmax=True)
+		lower_bound_u = F.transpose(F.reshape(lower_bound_u, (num_types_of_label, batchsize_u)))
+		lower_bound_u = y_distribution * (lower_bound_u - F.log(y_distribution + 1e-6))
 
-		return loss_lower_bound, loss_entropy
-
-	def train(self, labeled_x, labeled_y, label_ids, unlabeled_x, labeled_L=1, unlabeled_L=1, test=False):
-		loss_labeled_reconstruction, loss_labeled_kld = self.loss_labeled(labeled_x, labeled_y, L=labeled_L, test=test)
-		loss_labeled = loss_labeled_reconstruction + loss_labeled_kld
-
-		loss_unlabeled_bound, loss_unlabeled_entropy = self.loss_unlabeled_fast(unlabeled_x, L=unlabeled_L, test=test)
-		loss_unlabeled = loss_unlabeled_bound + loss_unlabeled_entropy
-
+		loss_labeled = -F.sum(lower_bound_l) / batchsize_l
+		loss_unlabeled = -F.sum(lower_bound_u) / batchsize_u
 		loss = loss_labeled + loss_unlabeled
 
 		self.zero_grads()
@@ -262,8 +316,9 @@ class VAE():
 			loss_unlabeled.to_cpu()
 		return loss_labeled.data, loss_unlabeled.data
 
+	# Extended objective eq.9
 	def train_classification(self, labeled_x, label_ids, alpha=1.0, test=False):
-		y_distribution = self.encode_x_y(labeled_x, softmax=False, test=test)
+		y_distribution = self.encoder_x_y(labeled_x, softmax=False, test=test)
 		batchsize = labeled_x.data.shape[0]
 		num_types_of_label = y_distribution.data.shape[1]
 
@@ -274,28 +329,6 @@ class VAE():
 		if self.gpu:
 			loss_classifier.to_cpu()
 		return loss_classifier.data
-
-	def train_supervised(self, labeled_x, labeled_y, alpha, L=1, test=False):
-		loss = self.loss_labeled(labeled_x, labeled_y, alpha, L=L, test=test)
-
-		self.zero_grads()
-		loss.backward()
-		self.update()
-
-		if self.gpu:
-			loss.to_cpu()
-		return loss.data
-
-	def train_unsupervised(self, unlabeled_x, n_labels, L=1, test=False):
-		loss = self.loss_unlabeled(unlabeled_x, n_labels, L=L, test=test)
-
-		self.zero_grads()
-		loss.backward()
-		self.update()
-
-		if self.gpu:
-			loss.to_cpu()
-		return loss.data
 
 	def load(self, dir=None):
 		if dir is None:
@@ -324,9 +357,6 @@ class VAE():
 				serializers.save_hdf5(dir + "/%s_%s.hdf5" % (self.name, attr), prop)
 		print "model saved."
 
-	def __call__(self, x, test=False, output_pixel_value=True):
-		return self.decoder(self.encoder(x, test=test), test=test, output_pixel_value=True)
-
 class GaussianM2VAE(VAE):
 
 	def build(self, conf):
@@ -348,7 +378,6 @@ class GaussianM2VAE(VAE):
 		encoder_xy_z = GaussianEncoder(**encoder_xy_z_attributes)
 		encoder_xy_z.n_layers = len(encoder_xy_z_units)
 		encoder_xy_z.activation_function = conf.encoder_xy_z_activation_function
-		encoder_xy_z.output_activation_function = conf.encoder_xy_z_output_activation_function
 		encoder_xy_z.apply_dropout = conf.encoder_xy_z_apply_dropout
 		encoder_xy_z.apply_batchnorm = conf.encoder_xy_z_apply_batchnorm
 		encoder_xy_z.apply_batchnorm_to_input = conf.encoder_xy_z_apply_batchnorm_to_input
@@ -363,7 +392,6 @@ class GaussianM2VAE(VAE):
 		encoder_x_y = SoftmaxEncoder(**encoder_x_y_attributes)
 		encoder_x_y.n_layers = len(encoder_x_y_units)
 		encoder_x_y.activation_function = conf.encoder_x_y_activation_function
-		encoder_x_y.output_activation_function = conf.encoder_x_y_output_activation_function
 		encoder_x_y.apply_dropout = conf.encoder_x_y_apply_dropout
 		encoder_x_y.apply_batchnorm = conf.encoder_x_y_apply_batchnorm
 		encoder_x_y.apply_batchnorm_to_input = conf.encoder_x_y_apply_batchnorm_to_input
@@ -387,7 +415,6 @@ class GaussianM2VAE(VAE):
 		decoder = GaussianDecoder(**decoder_attributes)
 		decoder.n_layers = len(decoder_units)
 		decoder.activation_function = conf.decoder_activation_function
-		decoder.output_activation_function = conf.decoder_output_activation_function
 		decoder.apply_dropout = conf.decoder_apply_dropout
 		decoder.apply_batchnorm = conf.decoder_apply_batchnorm
 		decoder.apply_batchnorm_to_input = conf.decoder_apply_batchnorm_to_input
@@ -397,26 +424,6 @@ class GaussianM2VAE(VAE):
 			encoder_x_y.to_gpu()
 			decoder.to_gpu()
 		return encoder_xy_z, encoder_x_y, decoder
-
-	def loss_labeled(self, x, y, L=1, test=False):
-		# Math:
-		# Loss = -E_{q(z|x,y)}[logp(x|y,z) + logp(y)] + KL(q(z|x,y)||p(z))
-		loss_reconstruction = 0
-		batchsize = x.data.shape[0]
-		z_mean, z_ln_var = self.encoder_xy_z(x, y, test=test, sample_output=False)
-		# -E_{q(z|x,y)}[logp(x|y,z) + logp(y)]
-		for l in xrange(L):
-			# Sample z
-			z = F.gaussian(z_mean, z_ln_var)
-			# Decode
-			x_reconstruction_mean, x_reconstruction_ln_var = self.decode_zy_x(z, y, test=test, output_pixel_value=False)
-			# Approximation of E_q(z|x)[log(p(x|z))]
-			loss_reconstruction += F.gaussian_nll(x, x_reconstruction_mean, x_reconstruction_ln_var)
-		loss_reconstruction /= L * batchsize
-		# KL(q(z|x,y)||p(z))
-		loss_kld_regularization = F.gaussian_kl_divergence(z_mean, z_ln_var) / batchsize
-
-		return loss_reconstruction, loss_kld_regularization
 
 class BernoulliM2VAE(VAE):
 
@@ -439,7 +446,6 @@ class BernoulliM2VAE(VAE):
 		encoder_xy_z = GaussianEncoder(**encoder_xy_z_attributes)
 		encoder_xy_z.n_layers = len(encoder_xy_z_units)
 		encoder_xy_z.activation_function = conf.encoder_xy_z_activation_function
-		encoder_xy_z.output_activation_function = conf.encoder_xy_z_output_activation_function
 		encoder_xy_z.apply_dropout = conf.encoder_xy_z_apply_dropout
 		encoder_xy_z.apply_batchnorm = conf.encoder_xy_z_apply_batchnorm
 		encoder_xy_z.apply_batchnorm_to_input = conf.encoder_xy_z_apply_batchnorm_to_input
@@ -454,7 +460,6 @@ class BernoulliM2VAE(VAE):
 		encoder_x_y = SoftmaxEncoder(**encoder_x_y_attributes)
 		encoder_x_y.n_layers = len(encoder_x_y_units)
 		encoder_x_y.activation_function = conf.encoder_x_y_activation_function
-		encoder_x_y.output_activation_function = conf.encoder_x_y_output_activation_function
 		encoder_x_y.apply_dropout = conf.encoder_x_y_apply_dropout
 		encoder_x_y.apply_batchnorm = conf.encoder_x_y_apply_batchnorm
 		encoder_x_y.apply_batchnorm_to_input = conf.encoder_x_y_apply_batchnorm_to_input
@@ -471,7 +476,6 @@ class BernoulliM2VAE(VAE):
 		decoder = BernoulliDecoder(**decoder_attributes)
 		decoder.n_layers = len(decoder_units)
 		decoder.activation_function = conf.decoder_activation_function
-		decoder.output_activation_function = conf.decoder_output_activation_function
 		decoder.apply_dropout = conf.decoder_apply_dropout
 		decoder.apply_batchnorm = conf.decoder_apply_batchnorm
 		decoder.apply_batchnorm_to_input = conf.decoder_apply_batchnorm_to_input
@@ -482,56 +486,10 @@ class BernoulliM2VAE(VAE):
 			decoder.to_gpu()
 		return encoder_xy_z, encoder_x_y, decoder
 
-	def loss_labeled(self, x, y, L=1, test=False):
-		# Math:
-		# Loss = -E_{q(z|x,y)}[logp(x|y,z) + logp(y)] + KL(q(z|x,y)||p(z))
-		loss_reconstruction = 0
-		batchsize = x.data.shape[0]
-		z_mean, z_ln_var = self.encoder_xy_z(x, y, test=test, sample_output=False)
-		# -E_{q(z|x,y)}[logp(x|y,z) + logp(y)]
-		for l in xrange(L):
-			# Sample z
-			z = F.gaussian(z_mean, z_ln_var)
-			# Decode
-			x_expectation = self.decode_zy_x(z, y, test=test)
-			# x is between -1 to 1 so we convert it to be between 0 to 1
-			# logp(y) = log(1/num_labels)
-			reconstuction_loss = F.bernoulli_nll(x, x_expectation) - math.log(1.0 / y.data.shape[1])
-			loss_reconstruction += reconstuction_loss
-		loss_reconstruction /= L * batchsize
-		# KL(q(z|x,y)||p(z))
-		loss_kld_regularization = F.gaussian_kl_divergence(z_mean, z_ln_var) / batchsize
-
-		return loss_reconstruction, loss_kld_regularization
-
-	def loss_labeled_keepbatch(self, x, y, L=1, test=False):
-		# Math:
-		# Loss = -E_{q(z|x,y)}[logp(x|y,z) + logp(y)] + KL(q(z|x,y)||p(z))
-		loss_reconstruction = 0
-		batchsize = x.data.shape[0]
-		z_mean, z_ln_var = self.encoder_xy_z(x, y, test=test, sample_output=False)
-		# -E_{q(z|x,y)}[logp(x|y,z) + logp(y)]
-		for l in xrange(L):
-			# Sample z
-			z = F.gaussian(z_mean, z_ln_var)
-			# Decode
-			x_expectation = self.decode_zy_x(z, y, test=test)
-			# x is between -1 to 1 so we convert it to be between 0 to 1
-			# logp(y) = log(1/num_labels)
-			reconstuction_loss = self.bernoulli_nll_keepbatch(x, x_expectation) - math.log(1.0 / y.data.shape[1])
-			loss_reconstruction += reconstuction_loss
-		loss_reconstruction /= L
-		# KL(q(z|x,y)||p(z))
-		loss_kld_regularization = self.gaussian_kl_divergence_keepbatch(z_mean, z_ln_var)
-
-		return loss_reconstruction, loss_kld_regularization
-
-
 class SoftmaxEncoder(chainer.Chain):
 	def __init__(self, **layers):
 		super(SoftmaxEncoder, self).__init__(**layers)
 		self.activation_function = "tanh"
-		self.output_activation_function = None
 		self.apply_batchnorm_to_input = True
 		self.apply_batchnorm = True
 		self.apply_dropout = True
@@ -554,10 +512,7 @@ class SoftmaxEncoder(chainer.Chain):
 					u = getattr(self, "batchnorm_%d" % i)(u, test=test)
 			u = getattr(self, "layer_%i" % i)(u)
 			if i == self.n_layers - 1:
-				if self.output_activation_function is None:
-					output = u
-				else:
-					output = activations[self.output_activation_function](u)
+				output = u
 			else:
 				output = f(u)
 				if self.apply_dropout:
@@ -576,7 +531,6 @@ class GaussianEncoder(chainer.Chain):
 	def __init__(self, **layers):
 		super(GaussianEncoder, self).__init__(**layers)
 		self.activation_function = "tanh"
-		self.output_activation_function = None
 		self.apply_batchnorm_to_input = True
 		self.apply_batchnorm = True
 		self.apply_dropout = True
@@ -605,10 +559,7 @@ class GaussianEncoder(chainer.Chain):
 				u = getattr(self, "batchnorm_mean_%d" % i)(u, test=test)
 			u = getattr(self, "layer_mean_%i" % i)(u)
 			if i == self.n_layers - 1:
-				if self.output_activation_function is None:
-					output = u
-				else:
-					output = activations[self.output_activation_function](u)
+				output = u
 			else:
 				output = f(u)
 				if self.apply_dropout:
@@ -620,10 +571,7 @@ class GaussianEncoder(chainer.Chain):
 				u = getattr(self, "batchnorm_var_%i" % i)(u, test=test)
 			u = getattr(self, "layer_var_%i" % i)(u)
 			if i == self.n_layers - 1:
-				if self.output_activation_function is None:
-					output = u
-				else:
-					output = activations[self.output_activation_function](u)
+				output = u
 			else:
 				output = f(u)
 				if self.apply_dropout:
@@ -669,10 +617,7 @@ class BernoulliDecoder(SoftmaxEncoder):
 				u = getattr(self, "batchnorm_%d" % i)(u, test=test)
 			u = getattr(self, "layer_%i" % i)(u)
 			if i == self.n_layers - 1:
-				if self.output_activation_function is None:
-					output = u
-				else:
-					output = activations[self.output_activation_function](u)
+				output = u
 			else:
 				output = f(u)
 				if self.apply_dropout:
@@ -683,35 +628,6 @@ class BernoulliDecoder(SoftmaxEncoder):
 
 	def __call__(self, z, y, test=False, output_pixel_value=False):
 		output = self.forward_one_step(z, y, test=test)
-		# Pixel value must be between -1 to 1
 		if output_pixel_value:
-			return (F.sigmoid(output) - 0.5) * 2.0
+			return F.sigmoid(output)
 		return output
-
-
-class Multiply(function.Function):
-	def check_type_forward(self, in_types):
-		n_in = in_types.size()
-		type_check.expect(n_in == 2)
-		matrix_type, vector_type = in_types
-
-		type_check.expect(
-			matrix_type.dtype == np.float32,
-			vector_type.dtype == np.float32,
-			matrix_type.ndim == 2,
-			vector_type.ndim == 2,
-		)
-
-	def forward(self, inputs):
-		xp = cuda.get_array_module(inputs[0])
-		matrix, vector = inputs
-		output = matrix * vector
-		return output,
-
-	def backward(self, inputs, grad_outputs):
-		xp = cuda.get_array_module(inputs[0])
-		matrix, vector = inputs
-		return grad_outputs[0] * vector, xp.sum(grad_outputs[0] * matrix, axis=1).reshape(-1, 1)
-
-def multiply(matrix, vector):
-	return Multiply()(matrix, vector)

@@ -21,7 +21,7 @@ num_labbeled_data = 100
 num_validation_data = 10000
 labeled_dataset, labels, unlabeled_dataset, validation_dataset, validation_labels = util.create_semisupervised(dataset, labels, num_validation_data, num_labbeled_data, num_types_of_label)
 print "labels:", labels
-alpha = 0.1 * len(dataset) / len(labeled_dataset)
+alpha = 0.1 * len(unlabeled_dataset)
 print "alpha:", alpha
 print "dataset:: labeled: {:d} unlabeled: {:d} validation: {:d}".format(len(labeled_dataset), len(unlabeled_dataset), len(validation_dataset))
 
@@ -37,7 +37,7 @@ for epoch in xrange(max_epoch):
 		loss = vae1.train(x, L=1)
 
 		sum_loss += loss
-		if t % 100 == 0:
+		if t % 10 == 0:
 			sys.stdout.write("\rTraining M1 in progress...(%d / %d)" % (t, num_trains_per_epoch))
 			sys.stdout.flush()
 	epoch_time = time.time() - epoch_time
@@ -65,7 +65,7 @@ for epoch in xrange(max_epoch):
 		sum_loss_labeled += loss_labeled
 		sum_loss_unlabeled += loss_unlabeled
 		sum_loss_classifier += loss_classifier
-		if t % 100 == 0:
+		if t % 10 == 0:
 			sys.stdout.write("\rTraining M2 in progress...({:d} / {:d})".format(t, num_trains_per_epoch))
 			sys.stdout.flush()
 	epoch_time = time.time() - epoch_time
@@ -74,3 +74,16 @@ for epoch in xrange(max_epoch):
 	print "[M2] epoch:", epoch, "loss::", "labeled: {:.3f}".format(sum_loss_labeled / num_trains_per_epoch), "unlabeled: {:.3f}".format(sum_loss_unlabeled / num_trains_per_epoch), "classifier: {:.3f}".format(sum_loss_classifier / num_trains_per_epoch), "time: {:d} min".format(int(epoch_time / 60)), "total: {:d} min".format(int(total_time / 60))
 	sys.stdout.flush()
 	vae2.save(args.model_dir)
+
+	# validation
+	x_labeled, _, label_ids = util.sample_x_and_label_variables(num_validation_data, conf1.ndim_x, conf2.ndim_y, validation_dataset, validation_labels, use_gpu=False)
+	if conf1.use_gpu:
+		x_labeled.to_gpu()
+	z_labeled = vae1.encode(x_labeled, test=True)
+	prediction = vae2.sample_x_label(z_labeled, test=True, argmax=True)
+	correct = 0
+	for i in xrange(num_validation_data):
+		if prediction[i] == label_ids.data[i]:
+			correct += 1
+	print "validation:: classification accuracy: {:f}".format(correct / float(num_validation_data))
+
