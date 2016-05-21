@@ -11,11 +11,10 @@ ndim_x = 10
 # gaussian
 
 def gaussian_nll_keepbatch(x, mean, ln_var):
-	D = x.data.size
 	x_prec = F.exp(-ln_var)
 	x_diff = x - mean
-	x_power = (x_diff * x_diff) * x_prec * -0.5
-	return (F.sum(ln_var, axis=1) + x.data.shape[1] * math.log(2 * math.pi)) / 2 - F.sum(x_power, axis=1)
+	x_power = (x_diff * x_diff) * x_prec * 0.5
+	return F.sum((math.log(2.0 * math.pi) + ln_var) * 0.5 + x_power, axis=1)
 
 print "gaussian:"
 x_batch = np.random.uniform(-10, 10, (batchsize, ndim_x)).astype(np.float32)
@@ -39,7 +38,7 @@ print nll.data
 # kl divergence
 def gaussian_kl_divergence(mean, ln_var):
 	var = F.exp(ln_var)
-	kld = (F.sum(mean * mean, axis=1) + F.sum(var, axis=1) - F.sum(ln_var, axis=1) - mean.data.shape[1]) * 0.5
+	kld = F.sum(mean * mean + var - ln_var - 1, axis=1) * 0.5
 	return kld
 
 print "kl divergence"

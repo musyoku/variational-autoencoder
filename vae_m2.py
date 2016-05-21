@@ -135,8 +135,8 @@ class VAE():
 		z = self.encoder_xy_z(x, y, test=test)
 		return z
 
-	def decode_zy_x(self, z, y, test=False):
-		x = self.decoder(z, y, test=False, output_pixel_value=True)
+	def decode_zy_x(self, z, y, test=False, output_pixel_value=True):
+		x = self.decoder(z, y, test=False, output_pixel_value=output_pixel_value)
 		return x
 
 	def sample_x_y(self, x, argmax=False, test=False):
@@ -180,15 +180,14 @@ class VAE():
 		return F.sum(nll, axis=1)
 
 	def gaussian_nll_keepbatch(self, x, mean, ln_var):
-		D = x.data.size
 		x_prec = F.exp(-ln_var)
 		x_diff = x - mean
-		x_power = (x_diff * x_diff) * x_prec * -0.5
-		return (F.sum(ln_var, axis=1) + x.data.shape[1] * math.log(2 * math.pi)) / 2 - F.sum(x_power, axis=1)
+		x_power = (x_diff * x_diff) * x_prec * 0.5
+		return F.sum((math.log(2.0 * math.pi) + ln_var) * 0.5 + x_power, axis=1)
 
 	def gaussian_kl_divergence_keepbatch(self, mean, ln_var):
 		var = F.exp(ln_var)
-		kld = (F.sum(mean * mean, axis=1) + F.sum(var, axis=1) - F.sum(ln_var, axis=1) - mean.data.shape[1]) * 0.5
+		kld = F.sum(mean * mean + var - ln_var - 1, axis=1) * 0.5
 		return kld
 
 	def log_px_zy(self, x, z, y, test=False):
@@ -488,10 +487,10 @@ class BernoulliM2VAE(VAE):
 class SoftmaxEncoder(chainer.Chain):
 	def __init__(self, **layers):
 		super(SoftmaxEncoder, self).__init__(**layers)
-		self.activation_function = "tanh"
-		self.apply_batchnorm_to_input = True
-		self.apply_batchnorm = True
-		self.apply_dropout = True
+		self.activation_function = "softplus"
+		self.apply_batchnorm_to_input = False
+		self.apply_batchnorm = False
+		self.apply_dropout = False
 
 	@property
 	def xp(self):
@@ -529,10 +528,10 @@ class SoftmaxEncoder(chainer.Chain):
 class GaussianEncoder(chainer.Chain):
 	def __init__(self, **layers):
 		super(GaussianEncoder, self).__init__(**layers)
-		self.activation_function = "tanh"
-		self.apply_batchnorm_to_input = True
-		self.apply_batchnorm = True
-		self.apply_dropout = True
+		self.activation_function = "softplus"
+		self.apply_batchnorm_to_input = False
+		self.apply_batchnorm = False
+		self.apply_dropout = False
 
 	@property
 	def xp(self):
@@ -553,6 +552,7 @@ class GaussianEncoder(chainer.Chain):
 
 		# Hidden
 		for i in range(self.n_layers):
+			# mean
 			u = chain_mean[-1]
 			if self.apply_batchnorm:
 				u = getattr(self, "batchnorm_mean_%d" % i)(u, test=test)
@@ -565,6 +565,7 @@ class GaussianEncoder(chainer.Chain):
 					output = F.dropout(output, train=not test)
 			chain_mean.append(output)
 
+			# variance
 			u = chain_variance[-1]
 			if self.apply_batchnorm:
 				u = getattr(self, "batchnorm_var_%i" % i)(u, test=test)
@@ -578,7 +579,7 @@ class GaussianEncoder(chainer.Chain):
 			chain_variance.append(output)
 
 		mean = chain_mean[-1]
-		# log(sigma^2)
+		# log(variance)
 		ln_var = chain_variance[-1]
 
 		return mean, ln_var
