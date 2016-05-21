@@ -13,14 +13,10 @@ try:
 except:
 	pass
 
-vae1.load(args.model_dir)
-vae2.load(args.model_dir)
-dataset = util.load_images(args.test_image_dir)
-
-try:
-	os.mkdir(args.vis_dir)
-except:
-	pass
+dist = "bernoulli"
+if isinstance(vae1, GaussianM2VAE):
+	dist = "gaussian"
+dataset = util.load_images(args.test_image_dir, dist=dist)
 
 n_analogies = 10
 n_image_channels = 1

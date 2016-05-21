@@ -13,9 +13,10 @@ try:
 except:
 	pass
 
-vae1.load(args.model_dir)
-vae2.load(args.model_dir)
-dataset = util.load_images(args.test_image_dir)
+dist = "bernoulli"
+if isinstance(vae, GaussianM2VAE):
+	dist = "gaussian"
+dataset = util.load_images(args.test_image_dir, dist=dist)
 
 num_images = 100
 x = util.sample_x_variable(num_images, conf1.ndim_x, dataset, gpu_enabled=conf1.gpu_enabled)
@@ -27,5 +28,8 @@ _x = vae1.decode(_z1, test=True)
 if conf1.gpu_enabled:
 	z2.to_cpu()
 	_x.to_cpu()
-util.visualize_x(_x.data, dir=args.vis_dir)
+_x = _x.data
+if dist == "gaussian":
+	_x = (_x + 1.0) / 2.0
+util.visualize_x(_x, dir=args.vis_dir)
 util.visualize_z(z2.data, dir=args.vis_dir)

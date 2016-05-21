@@ -13,8 +13,11 @@ try:
 except:
 	pass
 
-vae.load(args.model_dir)
-dataset = util.load_images(args.test_image_dir)
+dist = "bernoulli"
+if isinstance(vae, GaussianM2VAE):
+	dist = "gaussian"
+dataset = util.load_images(args.test_image_dir, dist=dist)
+
 num_images = 100
 x = util.sample_x_variable(num_images, conf.ndim_x, dataset, gpu_enabled=conf.gpu_enabled)
 z = vae.encode(x, test=True)

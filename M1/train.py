@@ -7,8 +7,10 @@ import util
 from args import args
 from model import conf, vae
 
-vae.load(args.model_dir)
-dataset = util.load_images(args.train_image_dir)
+dist = "bernoulli"
+if isinstance(vae, GaussianM2VAE):
+	dist = "gaussian"
+dataset = util.load_images(args.train_image_dir, dist=dist)
 
 max_epoch = 1000
 num_trains_per_epoch = 2000

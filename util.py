@@ -8,7 +8,7 @@ from chainer import cuda, Variable, function
 from chainer.utils import type_check
 from sklearn import preprocessing
 
-def load_images(image_dir, convert_to_grayscale=True, binarize=False):
+def load_images(image_dir, convert_to_grayscale=True, dist="bernoulli"):
 	dataset = []
 	fs = os.listdir(image_dir)
 	print "loading", len(fs), "images..."
@@ -18,27 +18,41 @@ def load_images(image_dir, convert_to_grayscale=True, binarize=False):
 			img = np.asarray(Image.open(StringIO(f.read())).convert("L"), dtype=np.float32) / 255.0
 		else:
 			img = np.asarray(Image.open(StringIO(f.read())).convert("RGB"), dtype=np.float32).transpose(2, 0, 1) / 255.0
-		if binarize:
-			img = preprocessing.binarize(img, threshold=0.5)
+		if dist == "bernoulli":
+			# Sampling
+			# img = preprocessing.binarize(img, threshold=0.5)
+			pass
+		elif dist == "gaussian":
+			pass
+		else:
+			raise Exception()
+		img = (img - 0.5) * 2.0
 		dataset.append(img)
 		f.close()
 	return dataset
 
-def load_labeled_images(image_dir, convert_to_grayscale=True, binarize=False):
+def load_labeled_images(image_dir, convert_to_grayscale=True, dist="bernoulli"):
 	dataset = []
 	labels = []
 	fs = os.listdir(image_dir)
 	print "loading", len(fs), "images..."
 	for fn in fs:
-		m = re.match("(.)_.+", fn)
+		m = re.match("([0-9]+)_.+", fn)
 		label = int(m.group(1))
 		f = open("%s/%s" % (image_dir, fn), "rb")
 		if convert_to_grayscale:
 			img = np.asarray(Image.open(StringIO(f.read())).convert("L"), dtype=np.float32) / 255.0
 		else:
 			img = np.asarray(Image.open(StringIO(f.read())).convert("RGB"), dtype=np.float32).transpose(2, 0, 1) / 255.0
-		if binarize:
-			img = preprocessing.binarize(img, threshold=0.5)
+		if dist == "bernoulli":
+			# Sampling
+			# img = preprocessing.binarize(img, threshold=0.5)
+			pass
+		elif dist == "gaussian":
+			pass
+		else:
+			raise Exception()
+		img = (img - 0.5) * 2.0
 		dataset.append(img)
 		labels.append(label)
 		f.close()
@@ -151,9 +165,9 @@ def visualize_x(reconstructed_x_batch, image_width=28, image_height=28, image_ch
 	for m in range(100):
 		pylab.subplot(10, 10, m + 1)
 		if image_channel == 1:
-			pylab.imshow(np.clip((reconstructed_x_batch[m] + 1.0) / 2.0, 0.0, 1.0).reshape((image_width, image_height)), interpolation="none")
+			pylab.imshow(np.clip(reconstructed_x_batch[m], 0.0, 1.0).reshape((image_width, image_height)), interpolation="none")
 		elif image_channel == 3:
-			pylab.imshow(np.clip((reconstructed_x_batch[m] + 1.0) / 2.0, 0.0, 1.0).reshape((image_channel, image_width, image_height)), interpolation="none")
+			pylab.imshow(np.clip(reconstructed_x_batch[m], 0.0, 1.0).reshape((image_channel, image_width, image_height)), interpolation="none")
 		pylab.axis("off")
 	pylab.savefig("%s/reconstructed_x.png" % dir)
 
@@ -198,9 +212,9 @@ def visualize_walkthrough():
 		for row in range(10):
 			pylab.subplot(10, 10, row * 10 + col + 1)
 			if config.img_channel == 1:
-				pylab.imshow(np.clip((_x_batch.data[row] + 1.0) / 2.0, 0.0, 1.0).reshape((config.img_width, config.img_width)), interpolation="none")
+				pylab.imshow(np.clip(_x_batch.data[row], 0.0, 1.0).reshape((config.img_width, config.img_width)), interpolation="none")
 			elif config.img_channel == 3:
-				pylab.imshow(np.clip((_x_batch.data[row] + 1.0) / 2.0, 0.0, 1.0).reshape((config.img_channel, config.img_width, config.img_width)), interpolation="none")
+				pylab.imshow(np.clip(_x_batch.data[row], 0.0, 1.0).reshape((config.img_channel, config.img_width, config.img_width)), interpolation="none")
 			pylab.axis("off")
 				
 	pylab.savefig("%s/walk_through.png" % args.visualization_dir)

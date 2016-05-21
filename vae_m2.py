@@ -195,7 +195,7 @@ class VAE():
 		if isinstance(self.decoder, BernoulliDecoder):
 			# do not apply F.sigmoid to the output of the decoder
 			x_expectation = self.decoder(z, y, test=test, output_pixel_value=False)
-			negative_log_likelihood = self.bernoulli_nll_keepbatch(x, x_expectation)
+			negative_log_likelihood = self.bernoulli_nll_keepbatch((x + 1.0) / 2.0, x_expectation)
 			log_px_zy = -negative_log_likelihood
 		else:
 			x_mean, x_ln_var = self.decoder(z, y, test=test, output_pixel_value=False)
@@ -628,5 +628,5 @@ class BernoulliDecoder(SoftmaxEncoder):
 	def __call__(self, z, y, test=False, output_pixel_value=False):
 		output = self.forward_one_step(z, y, test=test)
 		if output_pixel_value:
-			return F.sigmoid(output)
+			return (F.sigmoid(output) - 0.5) * 2.0
 		return output

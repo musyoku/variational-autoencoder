@@ -13,6 +13,7 @@ conf1.decoder_apply_dropout = True
 conf1.encoder_units = [600, 600]
 conf1.decoder_units = [600, 600]
 vae1 = BernoulliM1VAE(conf1, name="m1")
+vae1.load(args.model_dir)
 
 # M2
 conf2 = Conf2()
@@ -26,3 +27,4 @@ conf2.encoder_xy_z_hidden_units = [500]
 conf2.encoder_x_y_hidden_units = [500]
 conf2.decoder_hidden_units = [500]
 vae2 = GaussianM2VAE(conf2, name="m2")
+vae2.load(args.model_dir)

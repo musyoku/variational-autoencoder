@@ -7,8 +7,12 @@ sys.path.append(os.path.split(os.getcwd())[0])
 import util
 from args import args
 from model import conf, vae
+from vae_m2 import GaussianM2VAE
 
-dataset, labels = util.load_labeled_images(args.train_image_dir)
+dist = "bernoulli"
+if isinstance(vae, GaussianM2VAE):
+	dist = "gaussian"
+dataset, labels = util.load_labeled_images(args.train_image_dir, dist=dist)
 
 max_epoch = 1000
 num_trains_per_epoch = 1000
@@ -25,10 +29,6 @@ print "alpha:", alpha
 print "dataset:: labeled: {:d} unlabeled: {:d} validation: {:d}".format(len(labeled_dataset), len(unlabeled_dataset), len(validation_dataset))
 
 # Export result to csv
-try:
-	os.mkdir(args.csv_dir)
-except:
-	pass
 csv_epoch = []
 
 total_time = 0
@@ -73,6 +73,6 @@ for epoch in xrange(max_epoch):
 	csv_epoch.append([epoch, int(total_time / 60), correct / float(num_validation_data)])
 	if epoch % 10 == 0 and len(csv_epoch) > 0:
 		data = pd.DataFrame(csv_epoch)
-		data.columns = ["epoch", "min", "num_steps", "accuracy"]
-		data.to_csv("{:s}/epoch.csv".format(args.csv_dir))
+		data.columns = ["epoch", "min", "accuracy"]
+		data.to_csv("{:s}/epoch.csv".format(args.model_dir))
 

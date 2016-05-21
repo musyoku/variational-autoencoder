@@ -10,3 +10,4 @@ conf.decoder_apply_dropout = True
 conf.encoder_units = [600, 600]
 conf.decoder_units = [600, 600]
 vae = BernoulliM1VAE(conf, name="m1")
+vae.load(args.model_dir)
