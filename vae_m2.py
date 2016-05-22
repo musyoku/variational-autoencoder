@@ -177,17 +177,17 @@ class VAE():
 
 	def bernoulli_nll_keepbatch(self, x, y):
 		nll = F.softplus(y) - x * y
-		return F.sum(nll, axis=1) / x.data.shape[1]
+		return F.sum(nll, axis=1)
 
 	def gaussian_nll_keepbatch(self, x, mean, ln_var):
 		x_prec = F.exp(-ln_var)
 		x_diff = x - mean
 		x_power = (x_diff * x_diff) * x_prec * 0.5
-		return F.sum((math.log(2.0 * math.pi) + ln_var) * 0.5 + x_power, axis=1) / x.data.shape[1]
+		return F.sum((math.log(2.0 * math.pi) + ln_var) * 0.5 + x_power, axis=1)
 
 	def gaussian_kl_divergence_keepbatch(self, mean, ln_var):
 		var = F.exp(ln_var)
-		kld = F.sum(mean * mean + var - ln_var - 1, axis=1) * 0.5 / mean.data.shape[1]
+		kld = F.sum(mean * mean + var - ln_var - 1, axis=1) * 0.5
 		return kld
 
 	def log_px_zy(self, x, z, y, test=False):
