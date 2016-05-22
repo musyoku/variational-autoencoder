@@ -249,14 +249,14 @@ class VAE():
 
 		### Lower bound for unlabeled data ###
 		# To marginalize y, we repeat unlabeled x, and construct a target (batchsize_u * num_types_of_label) x num_types_of_label
-		# Example of input and target matrix for a 3 class problem and batch_size=2.
+		# Example of n-dimensional x and target matrix for a 3 class problem and batch_size=2.
 		#            unlabeled_x_ext                  y_ext
-		#  [[x[0,0], x[0,1], ..., x[0,n_x]]         [[1, 0, 0]
-		#   [x[1,0], x[1,1], ..., x[1,n_x]]          [1, 0, 0]
-		#   [x[0,0], x[0,1], ..., x[0,n_x]]          [0, 1, 0]
-		#   [x[1,0], x[1,1], ..., x[1,n_x]]          [0, 1, 0]
-		#   [x[0,0], x[0,1], ..., x[0,n_x]]          [0, 0, 1]
-		#   [x[1,0], x[1,1], ..., x[1,n_x]]]         [0, 0, 1]]
+		#  [[x[0,0], x[0,1], ..., x[0,n]]         [[1, 0, 0]
+		#   [x[1,0], x[1,1], ..., x[1,n]]          [1, 0, 0]
+		#   [x[0,0], x[0,1], ..., x[0,n]]          [0, 1, 0]
+		#   [x[1,0], x[1,1], ..., x[1,n]]          [0, 1, 0]
+		#   [x[0,0], x[0,1], ..., x[0,n]]          [0, 0, 1]
+		#   [x[1,0], x[1,1], ..., x[1,n]]]         [0, 0, 1]]
 		# We thunk Lars Maaloe for this idea.
 		# See https://github.com/larsmaaloee/auxiliary-deep-generative-models
 
@@ -277,18 +277,19 @@ class VAE():
 		lower_bound_u = lower_bound(log_px_zy_u, log_py_u, log_pz_u, log_qz_xy_u)
 
 		# Compute eq.7 sum_y{q(y|x){-L(x,y) + H(q(y|x))}}
-		# LB(x, y) represents lower bound for an input image x and a label y (y = 0, 1, ..., 9)
+		# LB(x, y) represents lower bound for an input image x and a label y (y = 0, 1, ..., 9).
+		# bs represents batchsize.
 		# 
 		# lower_bound_u is a vector contains...
-		# [LB(x0,0), LB(x1,0), ..., LB(x_n,0), LB(x0,1), LB(x1,1), ..., LB(x_n,1), ..., LB(x0,9), LB(x1,9), ..., LB(x_n,9)]
+		# [LB(x0,0), LB(x1,0), ..., LB(x_bs,0), LB(x0,1), LB(x1,1), ..., LB(x_bs,1), ..., LB(x0,9), LB(x1,9), ..., LB(x_bs,9)]
 		# 
 		# After reshaping. (axis 1 corresponds to label, axis 2 corresponds to batch)
-		# [[LB(x0,0), LB(x1,0), ..., LB(x_n,0)],
-		#  [LB(x0,1), LB(x1,1), ..., LB(x_n,1)],
+		# [[LB(x0,0), LB(x1,0), ..., LB(x_bs,0)],
+		#  [LB(x0,1), LB(x1,1), ..., LB(x_bs,1)],
 		#                           .
 		#                           .
 		#                           .
-		#  [LB(x0,9), LB(x1,9), ..., LB(x_n,9)]]
+		#  [LB(x0,9), LB(x1,9), ..., LB(x_bs,9)]]
 		# 
 		# After transposing. (axis 1 corresponds to batch)
 		# [[LB(x0,0), LB(x0,1), ..., LB(x0,9)],
@@ -296,7 +297,7 @@ class VAE():
 		#                           .
 		#                           .
 		#                           .
-		#  [LB(x_n,0), LB(x_n,1), ..., LB(x_n,9)]]
+		#  [LB(x_bs,0), LB(x_bs,1), ..., LB(x_bs,9)]]
 		y_distribution = self.encoder_x_y(unlabeled_x, test=test, softmax=True)
 		lower_bound_u = F.transpose(F.reshape(lower_bound_u, (num_types_of_label, batchsize_u)))
 		lower_bound_u = y_distribution * (lower_bound_u - F.log(y_distribution + 1e-6))
