@@ -11,5 +11,12 @@ conf.decoder_apply_dropout = True
 conf.encoder_xy_z_hidden_units = [500]
 conf.encoder_x_y_hidden_units = [500]
 conf.decoder_hidden_units = [500]
-vae = GaussianM2VAE(conf, name="m2")
+
+if args.vae_type == "gaussian":
+	vae = GaussianM2VAE(conf, name="m2")
+elif args.vae_type == "bernoulli":
+	vae = BernoulliM2VAE(conf, name="m2")
+else:
+	raise Exception()
+	
 vae.load(args.model_dir)
