@@ -51,6 +51,8 @@ for epoch in xrange(max_epoch):
 	sys.stdout.flush()
 	vae1.save(args.model_dir)
 
+	continue
+
 	# Train M2
 	sum_loss_labeled = 0
 	sum_loss_unlabeled = 0
@@ -59,8 +61,8 @@ for epoch in xrange(max_epoch):
 	for t in xrange(num_trains_per_epoch):
 		x_labeled, y_labeled, label_ids = util.sample_x_and_label_variables(batchsize, conf1.ndim_x, conf2.ndim_y, labeled_dataset, labels, gpu_enabled=conf2.gpu_enabled)
 		x_unlabeled = util.sample_x_variable(batchsize, conf1.ndim_x, unlabeled_dataset, gpu_enabled=conf2.gpu_enabled)
-		z_labeled = vae1.encoder(x_labeled, test=True, sample_output=True)
-		z_unlabeled = vae1.encoder(x_unlabeled, test=True, sample_output=True)
+		z_labeled = Variable(vae1.encoder(x_labeled, test=True, sample_output=True).data)
+		z_unlabeled = Variable(vae1.encoder(x_unlabeled, test=True, sample_output=True).data)
 
 		# train
 		loss_labeled, loss_unlabeled = vae2.train(z_labeled, y_labeled, label_ids, z_unlabeled)

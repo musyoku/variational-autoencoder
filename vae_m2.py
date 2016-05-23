@@ -28,13 +28,13 @@ class Conf():
 		# ndim_x + ndim_y(input) -> 2000 -> 1000 -> 100 (output)
 		# encoder_xy_z_hidden_units = [2000, 1000]
 		self.encoder_xy_z_hidden_units = [600, 600]
-		self.encoder_xy_z_activation_function = "softplus"
+		self.encoder_xy_z_activation_function = "elu"
 		self.encoder_xy_z_apply_dropout = False
 		self.encoder_xy_z_apply_batchnorm = False
 		self.encoder_xy_z_apply_batchnorm_to_input = False
 
 		self.encoder_x_y_hidden_units = [600, 600]
-		self.encoder_x_y_activation_function = "softplus"
+		self.encoder_x_y_activation_function = "elu"
 		self.encoder_x_y_apply_dropout = False
 		self.encoder_x_y_apply_batchnorm = False
 		self.encoder_x_y_apply_batchnorm_to_input = False
@@ -43,7 +43,7 @@ class Conf():
 		# ndim_z + ndim_y(input) -> 2000 -> 1000 -> 100 (output)
 		# decoder_hidden_units = [2000, 1000]
 		self.decoder_hidden_units = [600, 600]
-		self.decoder_activation_function = "softplus"
+		self.decoder_activation_function = "elu"
 		self.decoder_apply_dropout = False
 		self.decoder_apply_batchnorm = False
 		self.decoder_apply_batchnorm_to_input = False
@@ -311,6 +311,9 @@ class VAE():
 
 		val = cuda.to_cpu(loss.data)
 		if val != val:
+			z_mean, z_ln_var = self.encoder_xy_z(unlabeled_x_ext, y_ext, test=test, sample_output=False)
+			print F.amax(z_mean.data)
+			print F.amax(z_ln_var.data)
 			raise Exception("You have encountered NaN!")
 
 		self.zero_grads()
@@ -366,7 +369,7 @@ class VAE():
 class GaussianM2VAE(VAE):
 
 	def build(self, conf):
-		wscale = 0.1
+		wscale = 0.01
 		encoder_xy_z_attributes = {}
 		encoder_xy_z_units = zip(conf.encoder_xy_z_hidden_units[:-1], conf.encoder_xy_z_hidden_units[1:])
 		encoder_xy_z_units += [(conf.encoder_x_y_hidden_units[-1], conf.ndim_z)]
@@ -434,7 +437,7 @@ class GaussianM2VAE(VAE):
 class BernoulliM2VAE(VAE):
 
 	def build(self, conf):
-		wscale = 0.1
+		wscale = 0.01
 		encoder_xy_z_attributes = {}
 		encoder_xy_z_units = zip(conf.encoder_xy_z_hidden_units[:-1], conf.encoder_xy_z_hidden_units[1:])
 		encoder_xy_z_units += [(conf.encoder_xy_z_hidden_units[-1], conf.ndim_z)]

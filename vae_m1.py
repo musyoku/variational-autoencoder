@@ -25,13 +25,13 @@ class Conf():
 		# ndim_x (input) -> 2000 -> 1000 -> 100 (output)
 		# encoder_hidden_units = [2000, 1000]
 		self.encoder_hidden_units = [600, 600]
-		self.encoder_activation_function = "softplus"
+		self.encoder_activation_function = "elu"
 		self.encoder_apply_dropout = False
 		self.encoder_apply_batchnorm = False
 		self.encoder_apply_batchnorm_to_input = False
 
 		self.decoder_hidden_units = [600, 600]
-		self.decoder_activation_function = "softplus"
+		self.decoder_activation_function = "elu"
 		self.decoder_apply_dropout = False
 		self.decoder_apply_batchnorm = False
 		self.decoder_apply_batchnorm_to_input = False
@@ -146,9 +146,9 @@ class GaussianM1VAE(VAE):
 		encoder_units += [(conf.encoder_units[-1], conf.ndim_z)]
 		for i, (n_in, n_out) in enumerate(encoder_units):
 			encoder_attributes["layer_mean_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
-			encoder_attributes["batchnorm_mean_%i" % i] = L.BatchNormalization(n_in)
+			encoder_attributes["batchnorm_mean_%i" % i] = L.BatchNormalization(n_out)
 			encoder_attributes["layer_var_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
-			encoder_attributes["batchnorm_var_%i" % i] = L.BatchNormalization(n_in)
+			encoder_attributes["batchnorm_var_%i" % i] = L.BatchNormalization(n_out)
 		encoder = Encoder(**encoder_attributes)
 		encoder.n_layers = len(encoder_units)
 		encoder.activation_function = conf.encoder_activation_function
@@ -162,9 +162,9 @@ class GaussianM1VAE(VAE):
 		decoder_units += [(conf.decoder_units[-1], conf.ndim_x)]
 		for i, (n_in, n_out) in enumerate(decoder_units):
 			decoder_attributes["layer_mean_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
-			decoder_attributes["batchnorm_mean_%i" % i] = L.BatchNormalization(n_in)
+			decoder_attributes["batchnorm_mean_%i" % i] = L.BatchNormalization(n_out)
 			decoder_attributes["layer_var_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
-			decoder_attributes["batchnorm_var_%i" % i] = L.BatchNormalization(n_in)
+			decoder_attributes["batchnorm_var_%i" % i] = L.BatchNormalization(n_out)
 		decoder = GaussianDecoder(**decoder_attributes)
 		decoder.n_layers = len(decoder_units)
 		decoder.activation_function = conf.decoder_activation_function
@@ -203,16 +203,16 @@ class GaussianM1VAE(VAE):
 class BernoulliM1VAE(VAE):
 
 	def build(self, conf):
-		wscale = 1.0
+		wscale = 0.01
 		encoder_attributes = {}
 		encoder_units = [(conf.ndim_x, conf.encoder_units[0])]
 		encoder_units += zip(conf.encoder_units[:-1], conf.encoder_units[1:])
 		encoder_units += [(conf.encoder_units[-1], conf.ndim_z)]
 		for i, (n_in, n_out) in enumerate(encoder_units):
 			encoder_attributes["layer_mean_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
-			encoder_attributes["batchnorm_mean_%i" % i] = L.BatchNormalization(n_in)
+			encoder_attributes["batchnorm_mean_%i" % i] = L.BatchNormalization(n_out)
 			encoder_attributes["layer_var_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
-			encoder_attributes["batchnorm_var_%i" % i] = L.BatchNormalization(n_in)
+			encoder_attributes["batchnorm_var_%i" % i] = L.BatchNormalization(n_out)
 		encoder = Encoder(**encoder_attributes)
 		encoder.n_layers = len(encoder_units)
 		encoder.activation_function = conf.encoder_activation_function
@@ -226,7 +226,7 @@ class BernoulliM1VAE(VAE):
 		decoder_units += [(conf.decoder_units[-1], conf.ndim_x)]
 		for i, (n_in, n_out) in enumerate(decoder_units):
 			decoder_attributes["layer_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
-			decoder_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
+			decoder_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out)
 		decoder = BernoulliDecoder(**decoder_attributes)
 		decoder.n_layers = len(decoder_units)
 		decoder.activation_function = conf.decoder_activation_function
@@ -284,13 +284,13 @@ class Encoder(chainer.Chain):
 		for i in range(self.n_layers):
 			# mean
 			u = chain_mean[-1]
+			u = getattr(self, "layer_mean_%i" % i)(u)
 			if i == 0:
 				if self.apply_batchnorm_to_input:
 					u = getattr(self, "batchnorm_mean_%d" % i)(u, test=test)
 			else:
 				if self.apply_batchnorm:
 					u = getattr(self, "batchnorm_mean_%d" % i)(u, test=test)
-			u = getattr(self, "layer_mean_%i" % i)(u)
 			if i == self.n_layers - 1:
 				output = u
 			else:
@@ -301,13 +301,13 @@ class Encoder(chainer.Chain):
 
 			# var
 			u = chain_variance[-1]
+			u = getattr(self, "layer_var_%i" % i)(u)
 			if i == 0:
 				if self.apply_batchnorm_to_input:
 					u = getattr(self, "batchnorm_var_%i" % i)(u, test=test)
 			else:
 				if self.apply_batchnorm:
 					u = getattr(self, "batchnorm_var_%i" % i)(u, test=test)
-			u = getattr(self, "layer_var_%i" % i)(u)
 			if i == self.n_layers - 1:
 				output = u
 			else:
@@ -357,13 +357,13 @@ class BernoulliDecoder(chainer.Chain):
 		# Hidden
 		for i in range(self.n_layers):
 			u = chain[-1]
+			u = getattr(self, "layer_%i" % i)(u)
 			if i == 0:
 				if self.apply_batchnorm_to_input:
 					u = getattr(self, "batchnorm_%d" % i)(u, test=test)
 			else:
 				if self.apply_batchnorm:
 					u = getattr(self, "batchnorm_%d" % i)(u, test=test)
-			u = getattr(self, "layer_%i" % i)(u)
 			if i == self.n_layers - 1:
 				output = u
 			else:
