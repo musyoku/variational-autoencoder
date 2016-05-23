@@ -7,6 +7,7 @@ sys.path.append(os.path.split(os.getcwd())[0])
 import util
 from args import args
 from model import conf1, vae1, conf2, vae2
+from vae_m2 import GaussianM2VAE
 
 try:
 	os.mkdir(args.vis_dir)
@@ -23,8 +24,8 @@ n_image_channels = 1
 image_width = 28
 image_height = 28
 x = util.sample_x_variable(10, conf1.ndim_x, dataset, gpu_enabled=conf1.gpu_enabled)
-z1 = vae1.encode(x, test=True)
-y = vae2.encode_x_y(z1, test=True)
+z1 = vae1.encoder(x, test=True)
+y = vae2.sample_x_y(z1, test=True)
 z2 = vae2.encode_xy_z(z1, y, test=True)
 
 fig = pylab.gcf()
@@ -51,7 +52,7 @@ for m in xrange(n_analogies):
 		base_z2[n] = z2.data[m]
 	base_z2 = Variable(base_z2)
 	_z1 = vae2.decode_zy_x(base_z2, analogy_y, test=True, output_pixel_value=True)
-	_x = vae1.decode(_z1, test=True)
+	_x = vae1.decoder(_z1, test=True)
 	if conf1.gpu_enabled:
 		_x.to_cpu()
 	for n in xrange(conf2.ndim_y):

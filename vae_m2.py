@@ -2,7 +2,7 @@
 import math
 import numpy as np
 import chainer, os, collections, six
-from chainer import cuda, Variable, optimizers, serializers, function
+from chainer import cuda, Variable, optimizers, serializers, function, optimizer
 from chainer.utils import type_check
 from chainer import functions as F
 from chainer import links as L
@@ -90,15 +90,18 @@ class VAE():
 
 		self.optimizer_encoder_xy_z = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_encoder_xy_z.setup(self.encoder_xy_z)
-		# self.optimizer_encoder_xy_z.add_hook(GradientClipping(1.0))
+		self.optimizer_encoder_xy_z.add_hook(optimizer.WeightDecay(0.00001))
+		self.optimizer_encoder_xy_z.add_hook(GradientClipping(1.0))
 
 		self.optimizer_encoder_x_y = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_encoder_x_y.setup(self.encoder_x_y)
-		# self.optimizer_encoder_x_y.add_hook(GradientClipping(1.0))
+		self.optimizer_encoder_x_y.add_hook(optimizer.WeightDecay(0.00001))
+		self.optimizer_encoder_x_y.add_hook(GradientClipping(1.0))
 
 		self.optimizer_decoder = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_decoder.setup(self.decoder)
-		# self.optimizer_decoder.add_hook(GradientClipping(1.0))
+		self.optimizer_decoder.add_hook(optimizer.WeightDecay(0.00001))
+		self.optimizer_decoder.add_hook(GradientClipping(1.0))
 
 	def build(self, conf):
 		raise Exception()
@@ -131,7 +134,7 @@ class VAE():
 		z = self.encoder_xy_z(x, y, test=test)
 		return z
 
-	def encode_xy_z(self, x, test=False):
+	def encode_xy_z(self, x, y, test=False):
 		z = self.encoder_xy_z(x, y, test=test)
 		return z
 
@@ -363,7 +366,7 @@ class VAE():
 class GaussianM2VAE(VAE):
 
 	def build(self, conf):
-		wscale = 1.0
+		wscale = 0.1
 		encoder_xy_z_attributes = {}
 		encoder_xy_z_units = zip(conf.encoder_xy_z_hidden_units[:-1], conf.encoder_xy_z_hidden_units[1:])
 		encoder_xy_z_units += [(conf.encoder_x_y_hidden_units[-1], conf.ndim_z)]
@@ -431,7 +434,7 @@ class GaussianM2VAE(VAE):
 class BernoulliM2VAE(VAE):
 
 	def build(self, conf):
-		wscale = 1.0
+		wscale = 0.1
 		encoder_xy_z_attributes = {}
 		encoder_xy_z_units = zip(conf.encoder_xy_z_hidden_units[:-1], conf.encoder_xy_z_hidden_units[1:])
 		encoder_xy_z_units += [(conf.encoder_xy_z_hidden_units[-1], conf.ndim_z)]

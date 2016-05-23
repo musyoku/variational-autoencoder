@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import chainer, os, collections, six
-from chainer import cuda, Variable, optimizers, serializers
+from chainer import cuda, Variable, optimizers, serializers, optimizer
 from chainer import functions as F
 from chainer import links as L
 
@@ -78,11 +78,13 @@ class VAE():
 
 		self.optimizer_encoder = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_encoder.setup(self.encoder)
-		self.optimizer_encoder.add_hook(GradientClipping(10.0))
+		self.optimizer_encoder.add_hook(optimizer.WeightDecay(0.00001))
+		self.optimizer_encoder.add_hook(GradientClipping(1.0))
 
 		self.optimizer_decoder = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_decoder.setup(self.decoder)
-		self.optimizer_decoder.add_hook(GradientClipping(10.0))
+		self.optimizer_decoder.add_hook(optimizer.WeightDecay(0.00001))
+		self.optimizer_decoder.add_hook(GradientClipping(1.0))
 
 	def build(self, conf):
 		raise Exception()
@@ -246,7 +248,7 @@ class BernoulliM1VAE(VAE):
 			# Decode
 			x_expectation = self.decoder(z, test=test)
 			# E_q(z|x)[log(p(x|z))]
-			reconstuction_loss += F.bernoulli_nll(x, x_expectation)
+			reconstuction_loss += F.bernoulli_nll((x + 1.0) / 2.0, x_expectation)
 		loss = reconstuction_loss / (L * x.data.shape[0])
 		# KL divergence
 		kld_regularization_loss = F.gaussian_kl_divergence(z_mean, z_ln_var)
@@ -375,5 +377,5 @@ class BernoulliDecoder(chainer.Chain):
 	def __call__(self, x, test=False, output_pixel_value=False):
 		output = self.forward_one_step(x, test=test)
 		if output_pixel_value:
-			return F.sigmoid(output)
+			return (F.sigmoid(output) - 0.5) * 2.0
 		return output
