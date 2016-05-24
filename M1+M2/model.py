@@ -8,8 +8,8 @@ conf1 = Conf1()
 conf1.gpu_enabled = True if args.gpu_enabled == 1 else False
 conf1.ndim_x = 28 * 28
 conf1.ndim_z = 50
-conf1.encoder_apply_dropout = True
-conf1.decoder_apply_dropout = True
+conf1.encoder_apply_dropout = False
+conf1.decoder_apply_dropout = False
 conf1.encoder_apply_batchnorm = True
 conf1.encoder_apply_batchnorm_to_input = True
 conf1.decoder_apply_batchnorm = True
