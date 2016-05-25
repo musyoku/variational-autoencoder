@@ -157,9 +157,9 @@ class GaussianM1VAE(VAE):
 		encoder.apply_batchnorm_to_input = conf.encoder_apply_batchnorm_to_input
 
 		decoder_attributes = {}
-		decoder_units = [(conf.ndim_z, conf.decoder_units[0])]
-		decoder_units += zip(conf.decoder_units[:-1], conf.decoder_units[1:])
-		decoder_units += [(conf.decoder_units[-1], conf.ndim_x)]
+		decoder_units = [(conf.ndim_z, conf.decoder_hidden_units[0])]
+		decoder_units += zip(conf.decoder_hidden_units[:-1], conf.decoder_hidden_units[1:])
+		decoder_units += [(conf.decoder_hidden_units[-1], conf.ndim_x)]
 		for i, (n_in, n_out) in enumerate(decoder_units):
 			decoder_attributes["layer_mean_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
 			decoder_attributes["batchnorm_mean_%i" % i] = L.BatchNormalization(n_out)
@@ -221,9 +221,9 @@ class BernoulliM1VAE(VAE):
 		encoder.apply_batchnorm_to_input = conf.encoder_apply_batchnorm_to_input
 
 		decoder_attributes = {}
-		decoder_units = [(conf.ndim_z, conf.decoder_units[0])]
-		decoder_units += zip(conf.decoder_units[:-1], conf.decoder_units[1:])
-		decoder_units += [(conf.decoder_units[-1], conf.ndim_x)]
+		decoder_units = [(conf.ndim_z, conf.decoder_hidden_units[0])]
+		decoder_units += zip(conf.decoder_hidden_units[:-1], conf.decoder_hidden_units[1:])
+		decoder_units += [(conf.decoder_hidden_units[-1], conf.ndim_x)]
 		for i, (n_in, n_out) in enumerate(decoder_units):
 			decoder_attributes["layer_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
 			decoder_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out)
