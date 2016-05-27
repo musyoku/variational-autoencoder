@@ -52,6 +52,8 @@ for epoch in xrange(max_epoch):
 		sys.stdout.flush()
 		vae1.save(args.model_dir)
 
+	continue
+
 	# Train M2
 	sum_loss_labeled = 0
 	sum_loss_unlabeled = 0
