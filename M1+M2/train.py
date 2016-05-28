@@ -32,7 +32,7 @@ print "dataset:: labeled: {:d} unlabeled: {:d} validation: {:d}".format(len(labe
 total_time = 0
 for epoch in xrange(max_epoch):
 	# Train M1
-	if False:
+	if True:
 		sum_loss = 0
 		epoch_time = time.time()
 		for t in xrange(num_trains_per_epoch):
