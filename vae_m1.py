@@ -262,7 +262,7 @@ class BernoulliM1VAE(VAE):
 			# Sample z
 			z = F.gaussian(z_mean, z_ln_var)
 			# Decode
-			x_expectation = self.decoder(z, test=test)
+			x_expectation = self.decoder(z, test=test, output_pixel_value=False)
 			# E_q(z|x)[log(p(x|z))]
 			loss += self.bernoulli_nll_keepbatch((x + 1.0) / 2.0, x_expectation)
 		# KL divergence

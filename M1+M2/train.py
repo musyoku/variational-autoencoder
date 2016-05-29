@@ -32,7 +32,7 @@ print "dataset:: labeled: {:d} unlabeled: {:d} validation: {:d}".format(len(labe
 total_time = 0
 for epoch in xrange(max_epoch):
 	# Train M1
-	if True:
+	if False:
 		sum_loss = 0
 		epoch_time = time.time()
 		for t in xrange(num_trains_per_epoch):
@@ -51,8 +51,6 @@ for epoch in xrange(max_epoch):
 		print "[M1] epoch:", epoch, "loss: {:.3f}".format(sum_loss / num_trains_per_epoch), "time: {:d} min".format(int(epoch_time / 60)), "total: {:d} min".format(int(total_time / 60))
 		sys.stdout.flush()
 		vae1.save(args.model_dir)
-
-	continue
 
 	# Train M2
 	sum_loss_labeled = 0
