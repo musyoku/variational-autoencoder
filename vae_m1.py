@@ -110,6 +110,21 @@ class VAE():
 		self.optimizer_encoder.update()
 		self.optimizer_decoder.update()
 
+	def bernoulli_nll_keepbatch(self, x, y):
+		nll = F.softplus(y) - x * y
+		return F.sum(nll, axis=1)
+
+	def gaussian_nll_keepbatch(self, x, mean, ln_var):
+		x_prec = F.exp(-ln_var)
+		x_diff = x - mean
+		x_power = (x_diff * x_diff) * x_prec * 0.5
+		return F.sum((math.log(2.0 * math.pi) + ln_var) * 0.5 + x_power, axis=1)
+
+	def gaussian_kl_divergence_keepbatch(self, mean, ln_var):
+		var = F.exp(ln_var)
+		kld = F.sum(mean * mean + var - ln_var - 1, axis=1) * 0.5
+		return kld
+
 	def load(self, dir=None):
 		if dir is None:
 			raise Exception()
@@ -178,19 +193,19 @@ class GaussianM1VAE(VAE):
 		return encoder, decoder
 
 	def train(self, x, L=1, test=False):
+		batchsize = x.data.shape[0]
 		z_mean, z_ln_var = self.encoder(x, test=test, sample_output=False)
-		reconstuction_loss = 0
+		loss = 0
 		for l in xrange(L):
 			# Sample z
 			z = F.gaussian(z_mean, z_ln_var)
 			# Decode
 			x_reconstruction_mean, x_reconstruction_ln_var = self.decoder(z, test=test, output_pixel_value=False)
 			# E_q(z|x)[log(p(x|z))]
-			reconstuction_loss += F.gaussian_nll(x, x_reconstruction_mean, x_reconstruction_ln_var)
-		loss = reconstuction_loss / (L * x.data.shape[0])
+			loss += self.gaussian_nll_keepbatch(x, x_reconstruction_mean, x_reconstruction_ln_var)
 		# KL divergence
-		kld_regularization_loss = F.gaussian_kl_divergence(z_mean, z_ln_var)
-		loss += kld_regularization_loss / x.data.shape[0]
+		loss += self.gaussian_kl_divergence_keepbatch(z_mean, z_ln_var)
+		loss = F.sum(loss) / batchsize
 
 		self.zero_grads()
 		loss.backward()
@@ -240,19 +255,19 @@ class BernoulliM1VAE(VAE):
 		return encoder, decoder
 
 	def train(self, x, L=1, test=False):
+		batchsize = x.data.shape[0]
 		z_mean, z_ln_var = self.encoder(x, test=test, sample_output=False)
-		reconstuction_loss = 0
+		loss = 0
 		for l in xrange(L):
 			# Sample z
 			z = F.gaussian(z_mean, z_ln_var)
 			# Decode
 			x_expectation = self.decoder(z, test=test)
 			# E_q(z|x)[log(p(x|z))]
-			reconstuction_loss += F.bernoulli_nll((x + 1.0) / 2.0, x_expectation)
-		loss = reconstuction_loss / (L * x.data.shape[0])
+			loss += self.bernoulli_nll_keepbatch((x + 1.0) / 2.0, x_expectation)
 		# KL divergence
-		kld_regularization_loss = F.gaussian_kl_divergence(z_mean, z_ln_var)
-		loss += kld_regularization_loss / x.data.shape[0]
+		loss += self.gaussian_kl_divergence_keepbatch(z_mean, z_ln_var)
+		loss = F.sum(loss) / batchsize
 
 		self.zero_grads()
 		loss.backward()
