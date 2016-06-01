@@ -14,7 +14,7 @@ dataset = util.load_images(args.train_image_dir, dist=dist)
 
 max_epoch = 1000
 num_trains_per_epoch = 2000
-batchsize = 128
+batchsize = 100
 total_time = 0
 
 for epoch in xrange(max_epoch):
@@ -22,15 +22,18 @@ for epoch in xrange(max_epoch):
 	epoch_time = time.time()
 	for t in xrange(num_trains_per_epoch):
 		x = util.sample_x_variable(batchsize, conf.ndim_x, dataset, gpu_enabled=conf.gpu_enabled)
-		loss = vae.train(x)
+
+		# train
+		loss = vae.train(x, L=1)
+
 		sum_loss += loss
-		if t % 100 == 0:
-			sys.stdout.write("\rTraining in progress...(%d / %d)" % (t, num_trains_per_epoch))
+		if t % 10 == 0:
+			sys.stdout.write("\rTraining M1 in progress...(%d / %d)" % (t, num_trains_per_epoch))
 			sys.stdout.flush()
 	epoch_time = time.time() - epoch_time
 	total_time += epoch_time
 	sys.stdout.write("\r")
-	print "epoch:", epoch, "loss:", sum_loss / num_trains_per_epoch, "time:", "%d" % (epoch_time / 60), "min", "total", "%d" % (total_time / 60), "min"
+	print "epoch:", epoch, "loss: {:.3f}".format(sum_loss / num_trains_per_epoch), "time: {:d} min".format(int(epoch_time / 60)), "total: {:d} min".format(int(total_time / 60))
 	sys.stdout.flush()
 	vae.save(args.model_dir)
 
