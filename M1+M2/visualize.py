@@ -17,7 +17,7 @@ except:
 dist = "bernoulli"
 if isinstance(vae1, GaussianM2VAE):
 	dist = "gaussian"
-dataset = util.load_images(args.test_image_dir, dist=dist)
+dataset, labels = util.load_labeled_images(args.train_image_dir, dist=dist)
 
 num_images = 100
 x = util.sample_x_variable(num_images, conf1.ndim_x, dataset, gpu_enabled=conf1.gpu_enabled)
@@ -39,5 +39,6 @@ if conf1.gpu_enabled:
 _x = _x.data
 if dist == "gaussian":
 	_x = (_x + 1.0) / 2.0
-util.visualize_x(_x, dir=args.vis_dir)
-util.visualize_z(z2.data, dir=args.vis_dir)
+# util.visualize_x(_x, dir=args.vis_dir)
+# util.visualize_z(z2.data, dir=args.vis_dir)
+util.visualize_labeled_z(z1.data, labels, dir=args.vis_dir)

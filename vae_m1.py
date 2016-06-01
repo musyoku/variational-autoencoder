@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import math
 import numpy as np
 import chainer, os, collections, six
 from chainer import cuda, Variable, optimizers, serializers, optimizer
@@ -79,12 +80,12 @@ class VAE():
 		self.optimizer_encoder = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_encoder.setup(self.encoder)
 		self.optimizer_encoder.add_hook(optimizer.WeightDecay(0.00001))
-		self.optimizer_encoder.add_hook(GradientClipping(1.0))
+		self.optimizer_encoder.add_hook(GradientClipping(5.0))
 
 		self.optimizer_decoder = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_decoder.setup(self.decoder)
 		self.optimizer_decoder.add_hook(optimizer.WeightDecay(0.00001))
-		self.optimizer_decoder.add_hook(GradientClipping(1.0))
+		self.optimizer_decoder.add_hook(GradientClipping(5.0))
 
 	def build(self, conf):
 		raise Exception()

@@ -187,43 +187,7 @@ def visualize_z(z_batch, dir=None):
 	pylab.ylabel("z2")
 	pylab.savefig("%s/latent_code.png" % dir)
 
-def visualize_walkthrough():
-	x_batch = sample_x_from_data_distribution(20)
-	z_batch = gen(x_batch, test=True)
-	if gpu_enabled:
-		z_batch.to_cpu()
-
-	fig = pylab.gcf()
-	fig.set_size_inches(16.0, 16.0)
-	pylab.clf()
-	if config.img_channel == 1:
-		pylab.gray()
-	
-	z_a = z_batch.data[:10,:]
-	z_b = z_batch.data[10:,:]
-	for col in range(10):
-		_z_batch = z_a * (1 - col / 9.0) + z_b * col / 9.0
-		_z_batch = Variable(_z_batch)
-		if gpu_enabled:
-			_z_batch.to_gpu()
-		_x_batch = dec(_z_batch, test=True)
-		if gpu_enabled:
-			_x_batch.to_cpu()
-		for row in range(10):
-			pylab.subplot(10, 10, row * 10 + col + 1)
-			if config.img_channel == 1:
-				pylab.imshow(np.clip(_x_batch.data[row], 0.0, 1.0).reshape((config.img_width, config.img_width)), interpolation="none")
-			elif config.img_channel == 3:
-				pylab.imshow(np.clip(_x_batch.data[row], 0.0, 1.0).reshape((config.img_channel, config.img_width, config.img_width)), interpolation="none")
-			pylab.axis("off")
-				
-	pylab.savefig("%s/walk_through.png" % args.visualization_dir)
-
-def visualize_labeled_z():
-	x_batch, label_batch = sample_x_and_label_from_data_distribution(len(dataset), sequential=True)
-	z_batch = gen(x_batch, test=True)
-	z_batch = z_batch.data
-
+def visualize_labeled_z(z_batch, label_batch, dir=None):
 	fig = pylab.gcf()
 	fig.set_size_inches(20.0, 16.0)
 	pylab.clf()
@@ -244,4 +208,4 @@ def visualize_labeled_z():
 	pylab.yticks(pylab.arange(-4, 5))
 	pylab.xlabel("z1")
 	pylab.ylabel("z2")
-	pylab.savefig("%s/labeled_z.png" % args.visualization_dir)
+	pylab.savefig("%s/labeled_z.png" % dir)

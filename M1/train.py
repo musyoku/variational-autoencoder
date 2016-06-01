@@ -6,9 +6,10 @@ sys.path.append(os.path.split(os.getcwd())[0])
 import util
 from args import args
 from model import conf, vae
+from vae_m1 import GaussianM1VAE
 
 dist = "bernoulli"
-if isinstance(vae, GaussianM2VAE):
+if isinstance(vae, GaussianM1VAE):
 	dist = "gaussian"
 dataset = util.load_images(args.train_image_dir, dist=dist)
 
