@@ -7,6 +7,7 @@ from PIL import Image
 from chainer import cuda, Variable, function
 from chainer.utils import type_check
 from sklearn import preprocessing
+import matplotlib.patches as mpatches
 
 def load_images(image_dir, convert_to_grayscale=True, dist="bernoulli"):
 	dataset = []
@@ -150,7 +151,10 @@ def sample_x_and_label_variables(batchsize, ndim_x, ndim_y, dataset, labels, gpu
 		label_batch.to_gpu()
 	return x_batch, y_batch, label_batch
 
-def visualize_x(reconstructed_x_batch, image_width=28, image_height=28, image_channel=1, dir=None):
+def visualize_gaussian_x(reconstructed_x_batch, image_width=28, image_height=28, image_channel=1, dir=None):
+	return visualize_bernoulli_x((reconstructed_x_batch + 1.0) / 2.0, image_width=image_width, image_height=image_height, image_channel=image_channel, dir=dir)
+
+def visualize_bernoulli_x(reconstructed_x_batch, image_width=28, image_height=28, image_channel=1, dir=None):
 	if dir is None:
 		raise Exception()
 	try:

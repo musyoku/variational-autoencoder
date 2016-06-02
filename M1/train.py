@@ -14,7 +14,7 @@ if isinstance(vae, GaussianM1VAE):
 dataset = util.load_images(args.train_image_dir, dist=dist)
 
 max_epoch = 1000
-num_trains_per_epoch = 2000
+num_trains_per_epoch = 1000
 batchsize = 100
 total_time = 0
 

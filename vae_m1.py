@@ -204,8 +204,10 @@ class GaussianM1VAE(VAE):
 			x_reconstruction_mean, x_reconstruction_ln_var = self.decoder(z, test=test, output_pixel_value=False)
 			# E_q(z|x)[log(p(x|z))]
 			loss += self.gaussian_nll_keepbatch(x, x_reconstruction_mean, x_reconstruction_ln_var)
+		if L > 1:
+			loss /= L
 		# KL divergence
-		loss += self.gaussian_kl_divergence_keepbatch(z_mean, z_ln_var)
+		loss = self.gaussian_kl_divergence_keepbatch(z_mean, z_ln_var)
 		loss = F.sum(loss) / batchsize
 
 		self.zero_grads()
@@ -266,6 +268,8 @@ class BernoulliM1VAE(VAE):
 			x_expectation = self.decoder(z, test=test, output_pixel_value=False)
 			# E_q(z|x)[log(p(x|z))]
 			loss += self.bernoulli_nll_keepbatch((x + 1.0) / 2.0, x_expectation)
+		if L > 1:
+			loss /= L
 		# KL divergence
 		loss += self.gaussian_kl_divergence_keepbatch(z_mean, z_ln_var)
 		loss = F.sum(loss) / batchsize
