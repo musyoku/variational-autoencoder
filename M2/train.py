@@ -71,7 +71,7 @@ for epoch in xrange(max_epoch):
 			correct += 1
 	print "validation:: classification accuracy: {:f}".format(correct / float(num_validation_data))
 
-	# Add data
+	# Export to csv
 	csv_epoch.append([epoch, int(total_time / 60), correct / float(num_validation_data)])
 	if epoch % 10 == 0 and len(csv_epoch) > 0:
 		data = pd.DataFrame(csv_epoch)

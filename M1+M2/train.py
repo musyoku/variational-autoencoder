@@ -2,6 +2,7 @@
 import os, sys, time
 import numpy as np
 from chainer import cuda, Variable
+import pandas as pd
 sys.path.append(os.path.split(os.getcwd())[0])
 import util
 from args import args
@@ -29,6 +30,9 @@ print "labels:", labels
 alpha = 0.1 * len(dataset) / len(labeled_dataset)
 print "alpha:", alpha
 print "dataset:: labeled: {:d} unlabeled: {:d} validation: {:d}".format(len(labeled_dataset), len(unlabeled_dataset), len(validation_dataset))
+
+# Export result to csv
+csv_epoch = []
 
 total_time = 0
 for epoch in xrange(max_epoch):
@@ -92,4 +96,11 @@ for epoch in xrange(max_epoch):
 		if prediction[i] == label_ids.data[i]:
 			correct += 1
 	print "validation:: classification accuracy: {:f}".format(correct / float(num_validation_data))
+
+	# Export to csv
+	csv_epoch.append([epoch, int(total_time / 60), correct / float(num_validation_data)])
+	if epoch % 10 == 0 and len(csv_epoch) > 0:
+		data = pd.DataFrame(csv_epoch)
+		data.columns = ["epoch", "min", "accuracy"]
+		data.to_csv("{:s}/epoch.csv".format(args.model_dir))
 

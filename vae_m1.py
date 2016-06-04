@@ -79,12 +79,12 @@ class VAE():
 
 		self.optimizer_encoder = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_encoder.setup(self.encoder)
-		self.optimizer_encoder.add_hook(optimizer.WeightDecay(0.00001))
+		# self.optimizer_encoder.add_hook(optimizer.WeightDecay(0.00001))
 		self.optimizer_encoder.add_hook(GradientClipping(1.0))
 
 		self.optimizer_decoder = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_decoder.setup(self.decoder)
-		self.optimizer_decoder.add_hook(optimizer.WeightDecay(0.00001))
+		# self.optimizer_decoder.add_hook(optimizer.WeightDecay(0.00001))
 		self.optimizer_decoder.add_hook(GradientClipping(1.0))
 
 	def build(self, conf):
@@ -264,7 +264,7 @@ class BernoulliM1VAE(VAE):
 			# Decode
 			x_expectation = self.decoder(z, test=test, output_pixel_expectation=False)
 			# E_q(z|x)[log(p(x|z))]
-			loss += self.bernoulli_nll_keepbatch((x + 1.0) / 2.0, x_expectation)
+			loss += self.bernoulli_nll_keepbatch(x, x_expectation)
 		if L > 1:
 			loss /= L
 		# KL divergence

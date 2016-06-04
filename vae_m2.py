@@ -90,17 +90,17 @@ class VAE():
 
 		self.optimizer_encoder_xy_z = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_encoder_xy_z.setup(self.encoder_xy_z)
-		self.optimizer_encoder_xy_z.add_hook(optimizer.WeightDecay(0.00001))
+		# self.optimizer_encoder_xy_z.add_hook(optimizer.WeightDecay(0.00001))
 		self.optimizer_encoder_xy_z.add_hook(GradientClipping(1.0))
 
 		self.optimizer_encoder_x_y = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_encoder_x_y.setup(self.encoder_x_y)
-		self.optimizer_encoder_x_y.add_hook(optimizer.WeightDecay(0.00001))
+		# self.optimizer_encoder_x_y.add_hook(optimizer.WeightDecay(0.00001))
 		self.optimizer_encoder_x_y.add_hook(GradientClipping(1.0))
 
 		self.optimizer_decoder = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_decoder.setup(self.decoder)
-		self.optimizer_decoder.add_hook(optimizer.WeightDecay(0.00001))
+		# self.optimizer_decoder.add_hook(optimizer.WeightDecay(0.00001))
 		self.optimizer_decoder.add_hook(GradientClipping(1.0))
 
 	def build(self, conf):
@@ -197,7 +197,7 @@ class VAE():
 		if isinstance(self.decoder, BernoulliDecoder):
 			# do not apply F.sigmoid to the output of the decoder
 			x_expectation = self.decoder(z, y, test=test, output_pixel_expectation=False)
-			negative_log_likelihood = self.bernoulli_nll_keepbatch((x + 1.0) / 2.0, x_expectation)
+			negative_log_likelihood = self.bernoulli_nll_keepbatch(x, x_expectation)
 			log_px_zy = -negative_log_likelihood
 		else:
 			x_mean, x_ln_var = self.decoder(z, y, test=test, output_pixel_expectation=False)
@@ -311,9 +311,6 @@ class VAE():
 
 		val = cuda.to_cpu(loss.data)
 		if val != val:
-			z_mean, z_ln_var = self.encoder_xy_z(unlabeled_x_ext, y_ext, test=test, sample_output=False)
-			print F.amax(z_mean.data)
-			print F.amax(z_ln_var.data)
 			raise Exception("You have encountered NaN!")
 
 		self.zero_grads()
