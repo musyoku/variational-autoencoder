@@ -27,19 +27,19 @@ class Conf():
 		# encoder_hidden_units = [2000, 1000]
 		self.encoder_hidden_units = [600, 600]
 		self.encoder_activation_function = "elu"
-		self.encoder_apply_dropout = False
-		self.encoder_apply_batchnorm = False
-		self.encoder_apply_batchnorm_to_input = False
+		self.encoder_apply_dropout = True
+		self.encoder_apply_batchnorm = True
+		self.encoder_apply_batchnorm_to_input = True
 
 		self.decoder_hidden_units = [600, 600]
 		self.decoder_activation_function = "elu"
-		self.decoder_apply_dropout = False
-		self.decoder_apply_batchnorm = False
-		self.decoder_apply_batchnorm_to_input = False
+		self.decoder_apply_dropout = True
+		self.decoder_apply_batchnorm = True
+		self.decoder_apply_batchnorm_to_input = True
 
 		self.gpu_enabled = True
-		self.learning_rate = 0.00025
-		self.gradient_momentum = 0.95
+		self.learning_rate = 0.0003
+		self.gradient_momentum = 0.9
 
 	def check(self):
 		pass
@@ -80,12 +80,12 @@ class VAE():
 		self.optimizer_encoder = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_encoder.setup(self.encoder)
 		self.optimizer_encoder.add_hook(optimizer.WeightDecay(0.00001))
-		self.optimizer_encoder.add_hook(GradientClipping(5.0))
+		self.optimizer_encoder.add_hook(GradientClipping(1.0))
 
 		self.optimizer_decoder = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_decoder.setup(self.decoder)
 		self.optimizer_decoder.add_hook(optimizer.WeightDecay(0.00001))
-		self.optimizer_decoder.add_hook(GradientClipping(5.0))
+		self.optimizer_decoder.add_hook(GradientClipping(1.0))
 
 	def build(self, conf):
 		raise Exception()
@@ -159,12 +159,11 @@ class GaussianM1VAE(VAE):
 		encoder_attributes = {}
 		encoder_units = [(conf.ndim_x, conf.encoder_hidden_units[0])]
 		encoder_units += zip(conf.encoder_hidden_units[:-1], conf.encoder_hidden_units[1:])
-		encoder_units += [(conf.encoder_hidden_units[-1], conf.ndim_z)]
 		for i, (n_in, n_out) in enumerate(encoder_units):
-			encoder_attributes["layer_mean_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
-			encoder_attributes["batchnorm_mean_%i" % i] = L.BatchNormalization(n_out)
-			encoder_attributes["layer_var_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
-			encoder_attributes["batchnorm_var_%i" % i] = L.BatchNormalization(n_out)
+			encoder_attributes["layer_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
+			encoder_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out)
+		encoder_attributes["layer_mean"] = L.Linear(conf.encoder_hidden_units[-1], conf.ndim_z, wscale=wscale)
+		encoder_attributes["layer_var"] = L.Linear(conf.encoder_hidden_units[-1], conf.ndim_z, wscale=wscale)
 		encoder = Encoder(**encoder_attributes)
 		encoder.n_layers = len(encoder_units)
 		encoder.activation_function = conf.encoder_activation_function
@@ -175,12 +174,11 @@ class GaussianM1VAE(VAE):
 		decoder_attributes = {}
 		decoder_units = [(conf.ndim_z, conf.decoder_hidden_units[0])]
 		decoder_units += zip(conf.decoder_hidden_units[:-1], conf.decoder_hidden_units[1:])
-		decoder_units += [(conf.decoder_hidden_units[-1], conf.ndim_x)]
 		for i, (n_in, n_out) in enumerate(decoder_units):
-			decoder_attributes["layer_mean_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
-			decoder_attributes["batchnorm_mean_%i" % i] = L.BatchNormalization(n_out)
-			decoder_attributes["layer_var_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
-			decoder_attributes["batchnorm_var_%i" % i] = L.BatchNormalization(n_out)
+			decoder_attributes["layer_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
+			decoder_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out)
+		decoder_attributes["layer_mean"] = L.Linear(conf.decoder_hidden_units[-1], conf.ndim_x, wscale=wscale)
+		decoder_attributes["layer_var"] = L.Linear(conf.decoder_hidden_units[-1], conf.ndim_x, wscale=wscale)
 		decoder = GaussianDecoder(**decoder_attributes)
 		decoder.n_layers = len(decoder_units)
 		decoder.activation_function = conf.decoder_activation_function
@@ -201,13 +199,13 @@ class GaussianM1VAE(VAE):
 			# Sample z
 			z = F.gaussian(z_mean, z_ln_var)
 			# Decode
-			x_reconstruction_mean, x_reconstruction_ln_var = self.decoder(z, test=test, output_pixel_value=False)
+			x_reconstruction_mean, x_reconstruction_ln_var = self.decoder(z, test=test, output_pixel_expectation=False)
 			# E_q(z|x)[log(p(x|z))]
 			loss += self.gaussian_nll_keepbatch(x, x_reconstruction_mean, x_reconstruction_ln_var)
 		if L > 1:
 			loss /= L
 		# KL divergence
-		loss = self.gaussian_kl_divergence_keepbatch(z_mean, z_ln_var)
+		loss += self.gaussian_kl_divergence_keepbatch(z_mean, z_ln_var)
 		loss = F.sum(loss) / batchsize
 
 		self.zero_grads()
@@ -221,18 +219,19 @@ class GaussianM1VAE(VAE):
 class BernoulliM1VAE(VAE):
 
 	def build(self, conf):
-		wscale = 0.01
+		wscale = 0.1
 		encoder_attributes = {}
 		encoder_units = [(conf.ndim_x, conf.encoder_hidden_units[0])]
 		encoder_units += zip(conf.encoder_hidden_units[:-1], conf.encoder_hidden_units[1:])
-		encoder_units += [(conf.encoder_hidden_units[-1], conf.ndim_z)]
 		for i, (n_in, n_out) in enumerate(encoder_units):
-			encoder_attributes["layer_mean_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
-			encoder_attributes["batchnorm_mean_%i" % i] = L.BatchNormalization(n_out)
-			encoder_attributes["layer_var_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
-			encoder_attributes["batchnorm_var_%i" % i] = L.BatchNormalization(n_out)
+			encoder_attributes["layer_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
+			encoder_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
+		encoder_attributes["layer_mean"] = L.Linear(conf.encoder_hidden_units[-1], conf.ndim_z, wscale=wscale)
+		encoder_attributes["batchnorm_mean"] = L.BatchNormalization(conf.encoder_hidden_units[-1])
+		encoder_attributes["layer_var"] = L.Linear(conf.encoder_hidden_units[-1], conf.ndim_z, wscale=wscale)
+		encoder_attributes["batchnorm_var"] = L.BatchNormalization(conf.encoder_hidden_units[-1])
 		encoder = Encoder(**encoder_attributes)
-		encoder.n_layers = len(encoder_units)
+		encoder.n_layers = len(encoder_units) - 1
 		encoder.activation_function = conf.encoder_activation_function
 		encoder.apply_dropout = conf.encoder_apply_dropout
 		encoder.apply_batchnorm = conf.encoder_apply_batchnorm
@@ -244,7 +243,7 @@ class BernoulliM1VAE(VAE):
 		decoder_units += [(conf.decoder_hidden_units[-1], conf.ndim_x)]
 		for i, (n_in, n_out) in enumerate(decoder_units):
 			decoder_attributes["layer_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
-			decoder_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out)
+			decoder_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
 		decoder = BernoulliDecoder(**decoder_attributes)
 		decoder.n_layers = len(decoder_units)
 		decoder.activation_function = conf.decoder_activation_function
@@ -265,7 +264,7 @@ class BernoulliM1VAE(VAE):
 			# Sample z
 			z = F.gaussian(z_mean, z_ln_var)
 			# Decode
-			x_expectation = self.decoder(z, test=test, output_pixel_value=False)
+			x_expectation = self.decoder(z, test=test, output_pixel_expectation=False)
 			# E_q(z|x)[log(p(x|z))]
 			loss += self.bernoulli_nll_keepbatch((x + 1.0) / 2.0, x_expectation)
 		if L > 1:
@@ -297,48 +296,29 @@ class Encoder(chainer.Chain):
 	def forward_one_step(self, x, test=False, sample_output=True):
 		f = activations[self.activation_function]
 
-		chain_mean = [x]
-		chain_variance = [x]
+		chain = [x]
 
 		# Hidden
 		for i in range(self.n_layers):
-			# mean
-			u = chain_mean[-1]
-			u = getattr(self, "layer_mean_%i" % i)(u)
+			u = chain[-1]
+			u = getattr(self, "layer_%i" % i)(u)
 			if i == 0:
 				if self.apply_batchnorm_to_input:
-					u = getattr(self, "batchnorm_mean_%d" % i)(u, test=test)
+					u = getattr(self, "batchnorm_%d" % i)(u, test=test)
 			else:
 				if self.apply_batchnorm:
-					u = getattr(self, "batchnorm_mean_%d" % i)(u, test=test)
-			if i == self.n_layers - 1:
-				output = u
-			else:
-				output = f(u)
-				if self.apply_dropout:
-					output = F.dropout(output, train=not test)
-			chain_mean.append(output)
+					u = getattr(self, "batchnorm_%d" % i)(u, test=test)
+			output = f(u)
+			if self.apply_dropout:
+				output = F.dropout(output, train=not test)
+			chain.append(output)
 
-			# var
-			u = chain_variance[-1]
-			u = getattr(self, "layer_var_%i" % i)(u)
-			if i == 0:
-				if self.apply_batchnorm_to_input:
-					u = getattr(self, "batchnorm_var_%i" % i)(u, test=test)
-			else:
-				if self.apply_batchnorm:
-					u = getattr(self, "batchnorm_var_%i" % i)(u, test=test)
-			if i == self.n_layers - 1:
-				output = u
-			else:
-				output = f(u)
-				if self.apply_dropout:
-					output = F.dropout(output, train=not test)
-			chain_variance.append(output)
+		u = chain[-1]
+		mean = self.layer_mean(u)
 
-		mean = chain_mean[-1]
 		# log(sigma^2)
-		ln_var = chain_variance[-1]
+		u = chain[-1]
+		ln_var = self.layer_var(u)
 
 		return mean, ln_var
 
@@ -351,9 +331,9 @@ class Encoder(chainer.Chain):
 # Network structure is same as the Encoder
 class GaussianDecoder(Encoder):
 
-	def __call__(self, x, test=False, output_pixel_value=False):
+	def __call__(self, x, test=False, output_pixel_expectation=False):
 		mean, ln_var = self.forward_one_step(x, test=test, sample_output=False)
-		if output_pixel_value:
+		if output_pixel_expectation:
 			return F.gaussian(mean, ln_var)
 		return mean, ln_var
 
@@ -377,13 +357,13 @@ class BernoulliDecoder(chainer.Chain):
 		# Hidden
 		for i in range(self.n_layers):
 			u = chain[-1]
-			u = getattr(self, "layer_%i" % i)(u)
 			if i == 0:
 				if self.apply_batchnorm_to_input:
 					u = getattr(self, "batchnorm_%d" % i)(u, test=test)
 			else:
 				if self.apply_batchnorm:
 					u = getattr(self, "batchnorm_%d" % i)(u, test=test)
+			u = getattr(self, "layer_%i" % i)(u)
 			if i == self.n_layers - 1:
 				output = u
 			else:
@@ -394,8 +374,8 @@ class BernoulliDecoder(chainer.Chain):
 
 		return chain[-1]
 
-	def __call__(self, x, test=False, output_pixel_value=False):
+	def __call__(self, x, test=False, output_pixel_expectation=False):
 		output = self.forward_one_step(x, test=test)
-		if output_pixel_value:
-			return (F.sigmoid(output) - 0.5) * 2.0
+		if output_pixel_expectation:
+			return F.sigmoid(output)
 		return output

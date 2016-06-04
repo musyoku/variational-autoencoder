@@ -51,7 +51,7 @@ for m in xrange(n_analogies):
 	for n in xrange(conf2.ndim_y):
 		base_z2[n] = z2.data[m]
 	base_z2 = Variable(base_z2)
-	_z1 = vae2.decode_zy_x(base_z2, analogy_y, test=True, output_pixel_value=True)
+	_z1 = vae2.decode_zy_x(base_z2, analogy_y, test=True, output_pixel_expectation=True)
 	_x = vae1.decoder(_z1, test=True)
 	if conf1.gpu_enabled:
 		_x.to_cpu()
