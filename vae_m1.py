@@ -225,13 +225,11 @@ class BernoulliM1VAE(VAE):
 		encoder_units += zip(conf.encoder_hidden_units[:-1], conf.encoder_hidden_units[1:])
 		for i, (n_in, n_out) in enumerate(encoder_units):
 			encoder_attributes["layer_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
-			encoder_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
+			encoder_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out)
 		encoder_attributes["layer_mean"] = L.Linear(conf.encoder_hidden_units[-1], conf.ndim_z, wscale=wscale)
-		encoder_attributes["batchnorm_mean"] = L.BatchNormalization(conf.encoder_hidden_units[-1])
 		encoder_attributes["layer_var"] = L.Linear(conf.encoder_hidden_units[-1], conf.ndim_z, wscale=wscale)
-		encoder_attributes["batchnorm_var"] = L.BatchNormalization(conf.encoder_hidden_units[-1])
 		encoder = Encoder(**encoder_attributes)
-		encoder.n_layers = len(encoder_units) - 1
+		encoder.n_layers = len(encoder_units)
 		encoder.activation_function = conf.encoder_activation_function
 		encoder.apply_dropout = conf.encoder_apply_dropout
 		encoder.apply_batchnorm = conf.encoder_apply_batchnorm
@@ -331,9 +329,9 @@ class Encoder(chainer.Chain):
 # Network structure is same as the Encoder
 class GaussianDecoder(Encoder):
 
-	def __call__(self, x, test=False, output_pixel_expectation=False):
+	def __call__(self, x, test=False, sample_output=False):
 		mean, ln_var = self.forward_one_step(x, test=test, sample_output=False)
-		if output_pixel_expectation:
+		if sample_output:
 			return F.gaussian(mean, ln_var)
 		return mean, ln_var
 

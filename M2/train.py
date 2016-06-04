@@ -15,7 +15,7 @@ if isinstance(vae, GaussianM2VAE):
 dataset, labels = util.load_labeled_images(args.train_image_dir, dist=dist)
 
 max_epoch = 1000
-num_trains_per_epoch = 1000
+num_trains_per_epoch = 2000
 batchsize = 100
 
 # Create labeled/unlabeled split in training set

@@ -29,24 +29,24 @@ class Conf():
 		# encoder_xy_z_hidden_units = [2000, 1000]
 		self.encoder_xy_z_hidden_units = [600, 600]
 		self.encoder_xy_z_activation_function = "elu"
-		self.encoder_xy_z_apply_dropout = False
-		self.encoder_xy_z_apply_batchnorm = False
-		self.encoder_xy_z_apply_batchnorm_to_input = False
+		self.encoder_xy_z_apply_dropout = True
+		self.encoder_xy_z_apply_batchnorm = True
+		self.encoder_xy_z_apply_batchnorm_to_input = True
 
 		self.encoder_x_y_hidden_units = [600, 600]
 		self.encoder_x_y_activation_function = "elu"
-		self.encoder_x_y_apply_dropout = False
-		self.encoder_x_y_apply_batchnorm = False
-		self.encoder_x_y_apply_batchnorm_to_input = False
+		self.encoder_x_y_apply_dropout = True
+		self.encoder_x_y_apply_batchnorm = True
+		self.encoder_x_y_apply_batchnorm_to_input = True
 
 		# e.g.
 		# ndim_z + ndim_y(input) -> 2000 -> 1000 -> 100 (output)
 		# decoder_hidden_units = [2000, 1000]
 		self.decoder_hidden_units = [600, 600]
 		self.decoder_activation_function = "elu"
-		self.decoder_apply_dropout = False
-		self.decoder_apply_batchnorm = False
-		self.decoder_apply_batchnorm_to_input = False
+		self.decoder_apply_dropout = True
+		self.decoder_apply_batchnorm = True
+		self.decoder_apply_batchnorm_to_input = True
 
 		self.gpu_enabled = True
 		self.learning_rate = 0.0003
