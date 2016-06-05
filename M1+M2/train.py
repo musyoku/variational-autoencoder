@@ -16,7 +16,7 @@ dataset, labels = util.load_labeled_images(args.train_image_dir, dist=dist)
 
 max_epoch = 1000
 vae1_num_trains_per_epoch = 5000
-vae2_num_trains_per_epoch = 2000
+vae2_num_trains_per_epoch = 5000
 batchsize = 100
 
 # Create labeled/unlabeled split in training set
@@ -55,7 +55,6 @@ for epoch in xrange(max_epoch):
 	print "[M1] epoch:", epoch, "loss: {:.3f}".format(sum_loss / vae1_num_trains_per_epoch), "time: {:d} min".format(int(epoch_time / 60)), "total: {:d} min".format(int(total_time / 60))
 	sys.stdout.flush()
 	vae1.save(args.model_dir)
-
 
 	# Train M2
 	sum_loss_labeled = 0

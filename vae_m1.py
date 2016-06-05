@@ -40,6 +40,7 @@ class Conf():
 		self.gpu_enabled = True
 		self.learning_rate = 0.0003
 		self.gradient_momentum = 0.9
+		self.gradient_clipping = 1.0
 
 	def check(self):
 		pass
@@ -80,12 +81,12 @@ class VAE():
 		self.optimizer_encoder = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_encoder.setup(self.encoder)
 		# self.optimizer_encoder.add_hook(optimizer.WeightDecay(0.00001))
-		self.optimizer_encoder.add_hook(GradientClipping(1.0))
+		self.optimizer_encoder.add_hook(GradientClipping(conf.gradient_clipping))
 
 		self.optimizer_decoder = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_decoder.setup(self.decoder)
 		# self.optimizer_decoder.add_hook(optimizer.WeightDecay(0.00001))
-		self.optimizer_decoder.add_hook(GradientClipping(1.0))
+		self.optimizer_decoder.add_hook(GradientClipping(conf.gradient_clipping))
 
 	def build(self, conf):
 		raise Exception()
@@ -199,7 +200,7 @@ class GaussianM1VAE(VAE):
 			# Sample z
 			z = F.gaussian(z_mean, z_ln_var)
 			# Decode
-			x_reconstruction_mean, x_reconstruction_ln_var = self.decoder(z, test=test, output_pixel_expectation=False)
+			x_reconstruction_mean, x_reconstruction_ln_var = self.decoder(z, test=test, sample_output=False)
 			# E_q(z|x)[log(p(x|z))]
 			loss += self.gaussian_nll_keepbatch(x, x_reconstruction_mean, x_reconstruction_ln_var)
 		if L > 1:

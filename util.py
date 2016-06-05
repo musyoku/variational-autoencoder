@@ -21,7 +21,7 @@ def load_images(image_dir, convert_to_grayscale=True, dist="bernoulli"):
 			img = np.asarray(Image.open(StringIO(f.read())).convert("RGB"), dtype=np.float32).transpose(2, 0, 1) / 255.0
 		if dist == "bernoulli":
 			# Sampling
-			# img = preprocessing.binarize(img, threshold=0.5)
+			img = preprocessing.binarize(img, threshold=0.5)
 			pass
 		elif dist == "gaussian":
 			pass
@@ -46,7 +46,7 @@ def load_labeled_images(image_dir, convert_to_grayscale=True, dist="bernoulli"):
 			img = np.asarray(Image.open(StringIO(f.read())).convert("RGB"), dtype=np.float32).transpose(2, 0, 1) / 255.0
 		if dist == "bernoulli":
 			# Sampling
-			# img = preprocessing.binarize(img, threshold=0.5)
+			img = preprocessing.binarize(img, threshold=0.5)
 			pass
 		elif dist == "gaussian":
 			pass

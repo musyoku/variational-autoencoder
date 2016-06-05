@@ -51,6 +51,7 @@ class Conf():
 		self.gpu_enabled = True
 		self.learning_rate = 0.0003
 		self.gradient_momentum = 0.9
+		self.gradient_clipping = 1.0
 
 	def check(self):
 		pass
@@ -91,17 +92,17 @@ class VAE():
 		self.optimizer_encoder_xy_z = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_encoder_xy_z.setup(self.encoder_xy_z)
 		# self.optimizer_encoder_xy_z.add_hook(optimizer.WeightDecay(0.00001))
-		self.optimizer_encoder_xy_z.add_hook(GradientClipping(1.0))
+		self.optimizer_encoder_xy_z.add_hook(GradientClipping(conf.gradient_clipping))
 
 		self.optimizer_encoder_x_y = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_encoder_x_y.setup(self.encoder_x_y)
 		# self.optimizer_encoder_x_y.add_hook(optimizer.WeightDecay(0.00001))
-		self.optimizer_encoder_x_y.add_hook(GradientClipping(1.0))
+		self.optimizer_encoder_x_y.add_hook(GradientClipping(conf.gradient_clipping))
 
 		self.optimizer_decoder = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_decoder.setup(self.decoder)
 		# self.optimizer_decoder.add_hook(optimizer.WeightDecay(0.00001))
-		self.optimizer_decoder.add_hook(GradientClipping(1.0))
+		self.optimizer_decoder.add_hook(GradientClipping(conf.gradient_clipping))
 
 	def build(self, conf):
 		raise Exception()
