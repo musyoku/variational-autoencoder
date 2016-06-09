@@ -139,8 +139,8 @@ class VAE():
 		z = self.encoder_xy_z(x, y, test=test)
 		return z
 
-	def decode_zy_x(self, z, y, test=False, output_pixel_expectation=True):
-		x = self.decoder(z, y, test=False, output_pixel_expectation=output_pixel_expectation)
+	def decode_zy_x(self, z, y, test=False, apply_f=True):
+		x = self.decoder(z, y, test=False, apply_f=apply_f)
 		return x
 
 	def sample_x_y(self, x, argmax=False, test=False):
@@ -197,11 +197,11 @@ class VAE():
 	def log_px_zy(self, x, z, y, test=False):
 		if isinstance(self.decoder, BernoulliDecoder):
 			# do not apply F.sigmoid to the output of the decoder
-			x_expectation = self.decoder(z, y, test=test, output_pixel_expectation=False)
+			x_expectation = self.decoder(z, y, test=test, apply_f=False)
 			negative_log_likelihood = self.bernoulli_nll_keepbatch(x, x_expectation)
 			log_px_zy = -negative_log_likelihood
 		else:
-			x_mean, x_ln_var = self.decoder(z, y, test=test, output_pixel_expectation=False)
+			x_mean, x_ln_var = self.decoder(z, y, test=test, apply_f=False)
 			negative_log_likelihood = self.gaussian_nll_keepbatch(x, x_mean, x_ln_var)
 			log_px_zy = -negative_log_likelihood
 		return log_px_zy
@@ -219,7 +219,7 @@ class VAE():
 		return F.sum(log_pz, axis=1)
 
 	def log_qz_xy(self, x, y, z, test=False):
-		z_mean, z_ln_var = self.encoder_xy_z(x, y, test=test, sample_output=False)
+		z_mean, z_ln_var = self.encoder_xy_z(x, y, test=test, apply_f=False)
 		negative_log_likelihood = self.gaussian_nll_keepbatch(z, z_mean, z_ln_var)
 		log_qz_xy = -negative_log_likelihood
 		return log_qz_xy
@@ -533,7 +533,7 @@ class GaussianEncoder(chainer.Chain):
 	def xp(self):
 		return np if self._cpu else cuda.cupy
 
-	def forward_one_step(self, x, y, test=False, sample_output=True):
+	def forward_one_step(self, x, y, test=False, apply_f=True):
 		f = activations[self.activation_function]
 
 		if self.apply_batchnorm_to_input:
@@ -541,6 +541,8 @@ class GaussianEncoder(chainer.Chain):
 		else:
 			merged_input = f(self.layer_merge_x(x) + self.layer_merge_y(y))
 
+		if self.apply_dropout:
+			merged_input = F.dropout(merged_input, train=not test)
 		chain = [merged_input]
 
 		# Hidden
@@ -563,18 +565,18 @@ class GaussianEncoder(chainer.Chain):
 
 		return mean, ln_var
 
-	def __call__(self, x, y, test=False, sample_output=True):
-		mean, ln_var = self.forward_one_step(x, y, test=test, sample_output=sample_output)
-		if sample_output:
+	def __call__(self, x, y, test=False, apply_f=True):
+		mean, ln_var = self.forward_one_step(x, y, test=test, apply_f=apply_f)
+		if apply_f:
 			return F.gaussian(mean, ln_var)
 		return mean, ln_var
 
 # Network structure is same as the GaussianEncoder
 class GaussianDecoder(GaussianEncoder):
 
-	def __call__(self, z, y, test=False, output_pixel_expectation=False):
-		mean, ln_var = self.forward_one_step(z, y, test=test, sample_output=False)
-		if output_pixel_expectation:
+	def __call__(self, z, y, test=False, apply_f=False):
+		mean, ln_var = self.forward_one_step(z, y, test=test, apply_f=False)
+		if apply_f:
 			return F.gaussian(mean, ln_var)
 		return mean, ln_var
 
@@ -588,6 +590,8 @@ class BernoulliDecoder(SoftmaxEncoder):
 		else:
 			merged_input = f(self.layer_merge_z(z) + self.layer_merge_y(y))
 
+		if self.apply_dropout:
+			merged_input = F.dropout(merged_input, train=not test)
 		chain = [merged_input]
 
 		for i in range(self.n_layers):
@@ -605,8 +609,8 @@ class BernoulliDecoder(SoftmaxEncoder):
 
 		return chain[-1]
 
-	def __call__(self, z, y, test=False, output_pixel_expectation=False):
+	def __call__(self, z, y, test=False, apply_f=False):
 		output = self.forward_one_step(z, y, test=test)
-		if output_pixel_expectation:
+		if apply_f:
 			return (F.sigmoid(output) - 0.5) * 2.0
 		return output

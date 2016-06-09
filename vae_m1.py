@@ -263,7 +263,7 @@ class BernoulliM1VAE(VAE):
 			# Sample z
 			z = F.gaussian(z_mean, z_ln_var)
 			# Decode
-			x_expectation = self.decoder(z, test=test, output_pixel_expectation=False)
+			x_expectation = self.decoder(z, test=test, apply_f=False)
 			# E_q(z|x)[log(p(x|z))]
 			loss += self.bernoulli_nll_keepbatch(x, x_expectation)
 		if L > 1:
@@ -373,8 +373,8 @@ class BernoulliDecoder(chainer.Chain):
 
 		return chain[-1]
 
-	def __call__(self, x, test=False, output_pixel_expectation=False):
+	def __call__(self, x, test=False, apply_f=False):
 		output = self.forward_one_step(x, test=test)
-		if output_pixel_expectation:
+		if apply_f:
 			return F.sigmoid(output)
 		return output

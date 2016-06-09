@@ -31,7 +31,7 @@ with open("mean.txt", "w") as text_file:
 			text_file.write(str(z2.data[i, j]) + " ")
 		text_file.write("\n")
 
-_z1 = vae2.decode_zy_x(z2, y, test=True, output_pixel_expectation=True)
+_z1 = vae2.decode_zy_x(z2, y, test=True, apply_f=True)
 _x = vae1.decoder(_z1, test=True)
 if conf1.gpu_enabled:
 	z2.to_cpu()
