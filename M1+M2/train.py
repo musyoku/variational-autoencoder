@@ -37,24 +37,24 @@ csv_epoch = []
 total_time = 0
 for epoch in xrange(max_epoch):
 	# Train M1
-	sum_loss = 0
-	epoch_time = time.time()
-	for t in xrange(vae1_num_trains_per_epoch):
-		x = util.sample_x_variable(batchsize, conf1.ndim_x, dataset, gpu_enabled=conf1.gpu_enabled)
+	# sum_loss = 0
+	# epoch_time = time.time()
+	# for t in xrange(vae1_num_trains_per_epoch):
+	# 	x = util.sample_x_variable(batchsize, conf1.ndim_x, dataset, gpu_enabled=conf1.gpu_enabled)
 
-		# train
-		loss = vae1.train(x, L=1)
+	# 	# train
+	# 	loss = vae1.train(x, L=1)
 
-		sum_loss += loss
-		if t % 10 == 0:
-			sys.stdout.write("\rTraining M1 in progress...(%d / %d)" % (t, vae1_num_trains_per_epoch))
-			sys.stdout.flush()
-	epoch_time = time.time() - epoch_time
-	total_time += epoch_time
-	sys.stdout.write("\r")
-	print "[M1] epoch:", epoch, "loss: {:.3f}".format(sum_loss / vae1_num_trains_per_epoch), "time: {:d} min".format(int(epoch_time / 60)), "total: {:d} min".format(int(total_time / 60))
-	sys.stdout.flush()
-	vae1.save(args.model_dir)
+	# 	sum_loss += loss
+	# 	if t % 10 == 0:
+	# 		sys.stdout.write("\rTraining M1 in progress...(%d / %d)" % (t, vae1_num_trains_per_epoch))
+	# 		sys.stdout.flush()
+	# epoch_time = time.time() - epoch_time
+	# total_time += epoch_time
+	# sys.stdout.write("\r")
+	# print "[M1] epoch:", epoch, "loss: {:.3f}".format(sum_loss / vae1_num_trains_per_epoch), "time: {:d} min".format(int(epoch_time / 60)), "total: {:d} min".format(int(total_time / 60))
+	# sys.stdout.flush()
+	# vae1.save(args.model_dir)
 
 	# Train M2
 	sum_loss_labeled = 0
