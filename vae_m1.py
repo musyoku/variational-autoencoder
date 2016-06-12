@@ -80,12 +80,12 @@ class VAE():
 
 		self.optimizer_encoder = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_encoder.setup(self.encoder)
-		# self.optimizer_encoder.add_hook(optimizer.WeightDecay(0.00001))
+		# self.optimizer_encoder.add_hook(optimizer.WeightDecay(0.001))
 		self.optimizer_encoder.add_hook(GradientClipping(conf.gradient_clipping))
 
 		self.optimizer_decoder = optimizers.Adam(alpha=conf.learning_rate, beta1=conf.gradient_momentum)
 		self.optimizer_decoder.setup(self.decoder)
-		# self.optimizer_decoder.add_hook(optimizer.WeightDecay(0.00001))
+		# self.optimizer_decoder.add_hook(optimizer.WeightDecay(0.001))
 		self.optimizer_decoder.add_hook(GradientClipping(conf.gradient_clipping))
 
 	def build(self, conf):
@@ -119,12 +119,12 @@ class VAE():
 	def gaussian_nll_keepbatch(self, x, mean, ln_var):
 		x_prec = F.exp(-ln_var)
 		x_diff = x - mean
-		x_power = (x_diff * x_diff) * x_prec * 0.5
+		x_power = x_diff ** 2 * x_prec * 0.5
 		return F.sum((math.log(2.0 * math.pi) + ln_var) * 0.5 + x_power, axis=1)
 
 	def gaussian_kl_divergence_keepbatch(self, mean, ln_var):
 		var = F.exp(ln_var)
-		kld = F.sum(mean * mean + var - ln_var - 1, axis=1) * 0.5
+		kld = F.sum(mean ** 2 + var - ln_var - 1, axis=1) * 0.5
 		return kld
 
 	def load(self, dir=None):
@@ -339,8 +339,7 @@ class GaussianDecoder(Encoder):
 class BernoulliDecoder(chainer.Chain):
 	def __init__(self, **layers):
 		super(BernoulliDecoder, self).__init__(**layers)
-		self.activation_function = "tanh"
-		self.output_activation_function = None
+		self.activation_function = "softplus"
 		self.apply_batchnorm_to_input = True
 		self.apply_batchnorm = True
 		self.apply_dropout = True

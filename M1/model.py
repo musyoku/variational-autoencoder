@@ -4,7 +4,7 @@ from vae_m1 import BernoulliM1VAE, GaussianM1VAE, Conf
 
 conf = Conf()
 conf.gpu_enabled = True if args.gpu_enabled == 1 else False
-conf.ndim_z = 4
+conf.ndim_z = 50
 conf.encoder_apply_dropout = False
 conf.decoder_apply_dropout = False
 conf.encoder_apply_batchnorm = True
