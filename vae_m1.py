@@ -162,7 +162,7 @@ class GaussianM1VAE(VAE):
 		encoder_units += zip(conf.encoder_hidden_units[:-1], conf.encoder_hidden_units[1:])
 		for i, (n_in, n_out) in enumerate(encoder_units):
 			encoder_attributes["layer_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
-			encoder_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out)
+			encoder_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
 		encoder_attributes["layer_mean"] = L.Linear(conf.encoder_hidden_units[-1], conf.ndim_z, wscale=wscale)
 		encoder_attributes["layer_var"] = L.Linear(conf.encoder_hidden_units[-1], conf.ndim_z, wscale=wscale)
 		encoder = Encoder(**encoder_attributes)
@@ -177,7 +177,7 @@ class GaussianM1VAE(VAE):
 		decoder_units += zip(conf.decoder_hidden_units[:-1], conf.decoder_hidden_units[1:])
 		for i, (n_in, n_out) in enumerate(decoder_units):
 			decoder_attributes["layer_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
-			decoder_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out)
+			decoder_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
 		decoder_attributes["layer_mean"] = L.Linear(conf.decoder_hidden_units[-1], conf.ndim_x, wscale=wscale)
 		decoder_attributes["layer_var"] = L.Linear(conf.decoder_hidden_units[-1], conf.ndim_x, wscale=wscale)
 		decoder = GaussianDecoder(**decoder_attributes)
@@ -226,7 +226,7 @@ class BernoulliM1VAE(VAE):
 		encoder_units += zip(conf.encoder_hidden_units[:-1], conf.encoder_hidden_units[1:])
 		for i, (n_in, n_out) in enumerate(encoder_units):
 			encoder_attributes["layer_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
-			encoder_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out)
+			encoder_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
 		encoder_attributes["layer_mean"] = L.Linear(conf.encoder_hidden_units[-1], conf.ndim_z, wscale=wscale)
 		encoder_attributes["layer_var"] = L.Linear(conf.encoder_hidden_units[-1], conf.ndim_z, wscale=wscale)
 		encoder = Encoder(**encoder_attributes)
@@ -300,13 +300,13 @@ class Encoder(chainer.Chain):
 		# Hidden
 		for i in range(self.n_layers):
 			u = chain[-1]
-			u = getattr(self, "layer_%i" % i)(u)
 			if i == 0:
 				if self.apply_batchnorm_to_input:
 					u = getattr(self, "batchnorm_%d" % i)(u, test=test)
 			else:
 				if self.apply_batchnorm:
 					u = getattr(self, "batchnorm_%d" % i)(u, test=test)
+			u = getattr(self, "layer_%i" % i)(u)
 			output = f(u)
 			if self.apply_dropout:
 				output = F.dropout(output, train=not test)
