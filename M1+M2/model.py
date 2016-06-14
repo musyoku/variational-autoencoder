@@ -12,8 +12,8 @@ conf1.encoder_apply_dropout = True
 conf1.decoder_apply_dropout = True
 conf1.encoder_apply_batchnorm = True
 conf1.decoder_apply_batchnorm = True
-conf1.encoder_apply_batchnorm_to_input = False
-conf1.decoder_apply_batchnorm_to_input = False
+conf1.encoder_apply_batchnorm_to_input = True
+conf1.decoder_apply_batchnorm_to_input = True
 conf1.gradient_clipping = 1.0
 conf1.encoder_hidden_units = [600, 600]
 conf1.decoder_hidden_units = [600, 600]
@@ -24,7 +24,7 @@ vae1.load(args.model_dir)
 conf2 = Conf2()
 conf2.gpu_enabled = True if args.gpu_enabled == 1 else False
 conf2.ndim_x = 50
-conf2.ndim_z = 50
+conf2.ndim_z = 10
 conf2.encoder_xy_z_hidden_units = [500]
 conf2.encoder_x_y_hidden_units = [500]
 conf2.decoder_hidden_units = [500]

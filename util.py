@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import os, re, math, pylab
+import os, re, math, pylab, sys
 from math import *
 import numpy as np
 from StringIO import StringIO
@@ -35,7 +35,7 @@ def load_labeled_images(image_dir, convert_to_grayscale=True, dist="bernoulli"):
 	dataset = []
 	labels = []
 	fs = os.listdir(image_dir)
-	print "loading", len(fs), "images..."
+	i = 0
 	for fn in fs:
 		m = re.match("([0-9]+)_.+", fn)
 		label = int(m.group(1))
@@ -55,9 +55,16 @@ def load_labeled_images(image_dir, convert_to_grayscale=True, dist="bernoulli"):
 		dataset.append(img)
 		labels.append(label)
 		f.close()
+		i += 1
+		if i % 100 == 0:
+			sys.stdout.write("\rloading images...({:d} / {:d})".format(i, len(fs)))
+			sys.stdout.flush()
+	sys.stdout.write("\r")
 	return dataset, labels
 
 def create_semisupervised(dataset, labels, num_validation_data=10000, num_labeled_data=100, num_types_of_label=10):
+	if len(dataset) < num_validation_data + num_labeled_data:
+		raise Exception("too few dataset")
 	training_labeled_x = []
 	training_unlabeled_x = []
 	validation_x = []
@@ -72,6 +79,12 @@ def create_semisupervised(dataset, labels, num_validation_data=10000, num_labele
 	for n in xrange(num_types_of_label):
 		indices_for_label[n] = []
 
+	# mark as validation data
+	validation_indices = np.random.choice(np.arange(len(dataset), dtype=np.int32), size=num_validation_data, replace=False)
+	for i in xrange(num_validation_data):
+		flag[validation_indices[i]] = FLAG_VALIDATION
+
+	# mark as labeled data
 	def a(index):
 		label = labels[index]
 		if len(indices_for_label[label]) < num_data_per_label:
@@ -88,18 +101,15 @@ def create_semisupervised(dataset, labels, num_validation_data=10000, num_labele
 		return c != num_labeled_data
 
 	while b():
-		index = np.random.choice(np.arange(len(dataset), dtype=np.int32), size=1, replace=False)[0]
-		if a(index):
-			label = labels[index]
-			indices_for_label[label].append(index)
-			flag[index] = FLAG_LABELED
-
-	nv = 0
-	while nv < num_validation_data:
-		index = np.random.choice(np.arange(len(dataset), dtype=np.int32), size=1, replace=False)[0]
-		if flag[index] == FLAG_TRAINING:
-			flag[index] = FLAG_VALIDATION
-			nv += 1
+		indices = np.random.choice(np.arange(len(dataset), dtype=np.int32), size=num_labeled_data, replace=False)
+		for i in xrange(num_labeled_data):
+			index = indices[i]
+			if flag[index] == FLAG_TRAINING and a(index):
+				label = labels[index]
+				indices_for_label[label].append(index)
+				flag[index] = FLAG_LABELED
+				if b() == False:
+					break
 
 	for i in xrange(len(dataset)):
 		if flag[i] == FLAG_TRAINING:

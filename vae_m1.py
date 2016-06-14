@@ -21,6 +21,7 @@ class Conf():
 		self.image_height = 28
 		self.ndim_x = 28 * 28
 		self.ndim_z = 100
+		self.batchnorm_before_activation = True
 
 		# e.g.
 		# ndim_x (input) -> 2000 -> 1000 -> 100 (output)
@@ -162,7 +163,10 @@ class GaussianM1VAE(VAE):
 		encoder_units += zip(conf.encoder_hidden_units[:-1], conf.encoder_hidden_units[1:])
 		for i, (n_in, n_out) in enumerate(encoder_units):
 			encoder_attributes["layer_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
-			encoder_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
+			if conf.batchnorm_before_activation:
+				encoder_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out)
+			else:
+				encoder_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
 		encoder_attributes["layer_mean"] = L.Linear(conf.encoder_hidden_units[-1], conf.ndim_z, wscale=wscale)
 		encoder_attributes["layer_var"] = L.Linear(conf.encoder_hidden_units[-1], conf.ndim_z, wscale=wscale)
 		encoder = Encoder(**encoder_attributes)
@@ -171,13 +175,17 @@ class GaussianM1VAE(VAE):
 		encoder.apply_dropout = conf.encoder_apply_dropout
 		encoder.apply_batchnorm = conf.encoder_apply_batchnorm
 		encoder.apply_batchnorm_to_input = conf.encoder_apply_batchnorm_to_input
+		encoder.batchnorm_before_activation = conf.batchnorm_before_activation
 
 		decoder_attributes = {}
 		decoder_units = [(conf.ndim_z, conf.decoder_hidden_units[0])]
 		decoder_units += zip(conf.decoder_hidden_units[:-1], conf.decoder_hidden_units[1:])
 		for i, (n_in, n_out) in enumerate(decoder_units):
 			decoder_attributes["layer_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
-			decoder_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
+			if conf.batchnorm_before_activation:
+				decoder_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out)
+			else:
+				decoder_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
 		decoder_attributes["layer_mean"] = L.Linear(conf.decoder_hidden_units[-1], conf.ndim_x, wscale=wscale)
 		decoder_attributes["layer_var"] = L.Linear(conf.decoder_hidden_units[-1], conf.ndim_x, wscale=wscale)
 		decoder = GaussianDecoder(**decoder_attributes)
@@ -186,6 +194,7 @@ class GaussianM1VAE(VAE):
 		decoder.apply_dropout = conf.decoder_apply_dropout
 		decoder.apply_batchnorm = conf.decoder_apply_batchnorm
 		decoder.apply_batchnorm_to_input = conf.decoder_apply_batchnorm_to_input
+		decoder.batchnorm_before_activation = conf.batchnorm_before_activation
 
 		if conf.gpu_enabled:
 			encoder.to_gpu()
@@ -226,7 +235,10 @@ class BernoulliM1VAE(VAE):
 		encoder_units += zip(conf.encoder_hidden_units[:-1], conf.encoder_hidden_units[1:])
 		for i, (n_in, n_out) in enumerate(encoder_units):
 			encoder_attributes["layer_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
-			encoder_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
+			if conf.batchnorm_before_activation:
+				encoder_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out)
+			else:
+				encoder_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
 		encoder_attributes["layer_mean"] = L.Linear(conf.encoder_hidden_units[-1], conf.ndim_z, wscale=wscale)
 		encoder_attributes["layer_var"] = L.Linear(conf.encoder_hidden_units[-1], conf.ndim_z, wscale=wscale)
 		encoder = Encoder(**encoder_attributes)
@@ -235,6 +247,7 @@ class BernoulliM1VAE(VAE):
 		encoder.apply_dropout = conf.encoder_apply_dropout
 		encoder.apply_batchnorm = conf.encoder_apply_batchnorm
 		encoder.apply_batchnorm_to_input = conf.encoder_apply_batchnorm_to_input
+		encoder.batchnorm_before_activation = conf.batchnorm_before_activation
 
 		decoder_attributes = {}
 		decoder_units = [(conf.ndim_z, conf.decoder_hidden_units[0])]
@@ -242,13 +255,17 @@ class BernoulliM1VAE(VAE):
 		decoder_units += [(conf.decoder_hidden_units[-1], conf.ndim_x)]
 		for i, (n_in, n_out) in enumerate(decoder_units):
 			decoder_attributes["layer_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
-			decoder_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
+			if conf.batchnorm_before_activation:
+				decoder_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out)
+			else:
+				decoder_attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
 		decoder = BernoulliDecoder(**decoder_attributes)
 		decoder.n_layers = len(decoder_units)
 		decoder.activation_function = conf.decoder_activation_function
 		decoder.apply_dropout = conf.decoder_apply_dropout
 		decoder.apply_batchnorm = conf.decoder_apply_batchnorm
 		decoder.apply_batchnorm_to_input = conf.decoder_apply_batchnorm_to_input
+		decoder.batchnorm_before_activation = conf.batchnorm_before_activation
 
 		if conf.gpu_enabled:
 			encoder.to_gpu()
@@ -287,6 +304,7 @@ class Encoder(chainer.Chain):
 		self.apply_batchnorm_to_input = True
 		self.apply_batchnorm = True
 		self.apply_dropout = True
+		self.batchnorm_before_activation = True
 
 	@property
 	def xp(self):
@@ -300,13 +318,16 @@ class Encoder(chainer.Chain):
 		# Hidden
 		for i in range(self.n_layers):
 			u = chain[-1]
+			if self.batchnorm_before_activation:
+				u = getattr(self, "layer_%i" % i)(u)
 			if i == 0:
 				if self.apply_batchnorm_to_input:
 					u = getattr(self, "batchnorm_%d" % i)(u, test=test)
 			else:
 				if self.apply_batchnorm:
 					u = getattr(self, "batchnorm_%d" % i)(u, test=test)
-			u = getattr(self, "layer_%i" % i)(u)
+			if self.batchnorm_before_activation == False:
+				u = getattr(self, "layer_%i" % i)(u)
 			output = f(u)
 			if self.apply_dropout:
 				output = F.dropout(output, train=not test)
@@ -343,6 +364,7 @@ class BernoulliDecoder(chainer.Chain):
 		self.apply_batchnorm_to_input = True
 		self.apply_batchnorm = True
 		self.apply_dropout = True
+		self.batchnorm_before_activation = True
 
 	@property
 	def xp(self):
@@ -355,13 +377,19 @@ class BernoulliDecoder(chainer.Chain):
 		# Hidden
 		for i in range(self.n_layers):
 			u = chain[-1]
+			if self.batchnorm_before_activation:
+				u = getattr(self, "layer_%i" % i)(u)
 			if i == 0:
 				if self.apply_batchnorm_to_input:
+					u = getattr(self, "batchnorm_%d" % i)(u, test=test)
+			elif i == self.n_layers - 1:
+				if self.apply_batchnorm_to_input and self.batchnorm_before_activation == False:
 					u = getattr(self, "batchnorm_%d" % i)(u, test=test)
 			else:
 				if self.apply_batchnorm:
 					u = getattr(self, "batchnorm_%d" % i)(u, test=test)
-			u = getattr(self, "layer_%i" % i)(u)
+			if self.batchnorm_before_activation == False:
+				u = getattr(self, "layer_%i" % i)(u)
 			if i == self.n_layers - 1:
 				output = u
 			else:

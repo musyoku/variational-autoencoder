@@ -30,6 +30,11 @@ alpha = 0.1 * len(dataset) / len(labeled_dataset)
 print "alpha:", alpha
 print "dataset:: labeled: {:d} unlabeled: {:d} validation: {:d}".format(len(labeled_dataset), len(unlabeled_dataset), len(validation_dataset))
 
+# for i in xrange(len(labeled_dataset)):
+	# from PIL import Image
+# 	image = Image.fromarray(np.uint8(labeled_dataset[i].reshape(28, 28) * 255))
+# 	image.save("labeled_images/{:d}.bmp".format(i))
+
 # Export result to csv
 csv_epoch = []
 
