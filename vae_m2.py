@@ -29,13 +29,13 @@ class Conf():
 		# ndim_x + ndim_y(input) -> 2000 -> 1000 -> 100 (output)
 		# encoder_xy_z_hidden_units = [2000, 1000]
 		self.encoder_xy_z_hidden_units = [600, 600]
-		self.encoder_xy_z_activation_function = "elu"
+		self.encoder_xy_z_activation_function = "softplus"
 		self.encoder_xy_z_apply_dropout = True
 		self.encoder_xy_z_apply_batchnorm = True
 		self.encoder_xy_z_apply_batchnorm_to_input = True
 
 		self.encoder_x_y_hidden_units = [600, 600]
-		self.encoder_x_y_activation_function = "elu"
+		self.encoder_x_y_activation_function = "softplus"
 		self.encoder_x_y_apply_dropout = True
 		self.encoder_x_y_apply_batchnorm = True
 		self.encoder_x_y_apply_batchnorm_to_input = True
@@ -44,7 +44,7 @@ class Conf():
 		# ndim_z + ndim_y(input) -> 2000 -> 1000 -> 100 (output)
 		# decoder_hidden_units = [2000, 1000]
 		self.decoder_hidden_units = [600, 600]
-		self.decoder_activation_function = "elu"
+		self.decoder_activation_function = "softplus"
 		self.decoder_apply_dropout = True
 		self.decoder_apply_batchnorm = True
 		self.decoder_apply_batchnorm_to_input = True
