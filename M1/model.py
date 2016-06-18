@@ -13,5 +13,5 @@ conf.encoder_apply_batchnorm_to_input = True
 conf.decoder_apply_batchnorm_to_input = True
 conf.encoder_units = [600, 600]
 conf.decoder_units = [600, 600]
-vae = BernoulliM1VAE(conf, name="m1")
+vae = GaussianM1VAE(conf, name="m1")
 vae.load(args.model_dir)

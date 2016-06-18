@@ -66,6 +66,7 @@ def sum_sqnorm(arr):
 			sq_sum[int(dev)] += s
 	return sum([float(i) for i in six.itervalues(sq_sum)])
 	
+
 class GradientClipping(object):
 	name = "GradientClipping"
 
@@ -74,14 +75,14 @@ class GradientClipping(object):
 
 	def __call__(self, opt):
 		norm = np.sqrt(sum_sqnorm([p.grad for p in opt.target.params()]))
-		if norm == 0:
-			norm = 1
+		if norm < 1:
+			return
 		rate = self.threshold / norm
 		if rate < 1:
 			for param in opt.target.params():
 				grad = param.grad
 				with cuda.get_device(grad):
-					grad *= rate
+					grad = cuda.cupy.clip(grad, -self.threshold, self.threshold)
 
 class VAE():
 	# name is used for the filename when you save the model

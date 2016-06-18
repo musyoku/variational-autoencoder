@@ -27,13 +27,13 @@ class Conf():
 		# ndim_x (input) -> 2000 -> 1000 -> 100 (output)
 		# encoder_hidden_units = [2000, 1000]
 		self.encoder_hidden_units = [600, 600]
-		self.encoder_activation_function = "elu"
+		self.encoder_activation_function = "softplus"
 		self.encoder_apply_dropout = True
 		self.encoder_apply_batchnorm = True
 		self.encoder_apply_batchnorm_to_input = True
 
 		self.decoder_hidden_units = [600, 600]
-		self.decoder_activation_function = "elu"
+		self.decoder_activation_function = "softplus"
 		self.decoder_apply_dropout = True
 		self.decoder_apply_batchnorm = True
 		self.decoder_apply_batchnorm_to_input = True
@@ -63,14 +63,14 @@ class GradientClipping(object):
 
 	def __call__(self, opt):
 		norm = np.sqrt(sum_sqnorm([p.grad for p in opt.target.params()]))
-		if norm == 0:
-			norm = 1
+		if norm < 1:
+			return
 		rate = self.threshold / norm
 		if rate < 1:
 			for param in opt.target.params():
 				grad = param.grad
 				with cuda.get_device(grad):
-					grad *= rate
+					grad = cuda.cupy.clip(grad, -self.threshold, self.threshold)
 
 class VAE():
 	# name is used for the filename when you save the model
