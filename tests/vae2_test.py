@@ -6,7 +6,7 @@ sys.path.append(os.path.split(os.getcwd())[0])
 from vae_m2 import BernoulliM2VAE, GaussianM2VAE, Conf
 
 conf = Conf()
-conf.gpu_enabled = True
+conf.gpu_enabled = False
 conf.ndim_x = 5
 conf.ndim_y = 2
 conf.ndim_z = 4
@@ -33,24 +33,25 @@ x_labeled = np.asarray([
 	[-1, 1, -1, 1, -1],
 ], dtype=np.float32)
 x_labeled = Variable(x_labeled)
-x_labeled.to_gpu()
 x_unlabeled = np.asarray([
 	[1, 0, -1, 0, 1],
 	[0, 1, 0, 1, -1],
 ], dtype=np.float32)
 x_unlabeled = Variable(x_unlabeled)
-x_unlabeled.to_gpu()
 y_labeled = np.asarray([
 	[0, 1],
 	[1, 0],
 ], dtype=np.float32)
 y_labeled = Variable(y_labeled)
-y_labeled.to_gpu()
 label_ids = np.asarray([
 	0, 1
 ], dtype=np.int32)
 label_ids = Variable(label_ids)
-label_ids.to_gpu()
+if conf.gpu_enabled:
+	x_labeled.to_gpu()
+	x_unlabeled.to_gpu()
+	y_labeled.to_gpu()
+	label_ids.to_gpu()
 sum_loss_labeled = 0
 sum_loss_unlabeled = 0
 sum_loss_classifier = 0
