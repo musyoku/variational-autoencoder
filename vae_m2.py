@@ -126,10 +126,16 @@ class VAE():
 		self.optimizer_encoder_x_y.zero_grads()
 		self.optimizer_decoder.zero_grads()
 
+	def zero_grads_classifier(self):
+		self.optimizer_encoder_x_y.zero_grads()
+
 	def update(self):
 		self.optimizer_encoder_xy_z.update()
 		self.optimizer_encoder_x_y.update()
 		self.optimizer_decoder.update()
+
+	def update_classifier(self):
+		self.optimizer_encoder_x_y.update()
 
 	def encode_x_z(self, x, test=False):
 		y = self.sample_x_y(x, argmax=False, test=test)
@@ -244,9 +250,9 @@ class VAE():
 	# Extended objective eq.9
 	def train_classification(self, labeled_x, label_ids, alpha=1.0, test=False):
 		loss = self.compute_classification_loss(labeled_x, label_ids, alpha=alpha, test=test)
-		self.zero_grads()
+		self.zero_grads_classifier()
 		loss.backward()
-		self.update()
+		self.update_classifier()
 		if self.gpu:
 			loss.to_cpu()
 		return loss.data
