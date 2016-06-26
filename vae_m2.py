@@ -22,40 +22,45 @@ class Conf():
 		self.image_height = 28
 		self.ndim_x = 28 * 28
 		self.ndim_y = 10
-		self.ndim_z = 100
+		self.ndim_z = 50
+
+		# True : y = f(BN(Wx + b))
+		# False: y = BN(Wf(x) + b)
 		self.batchnorm_before_activation = True
+
 		# gaussianmarg | gaussian
+		# We recommend you to use "gaussianmarg"
 		self.type_pz = "gaussianmarg"
 		self.type_qz = "gaussianmarg"
 
 		# e.g.
-		# ndim_x + ndim_y(input) -> 2000 -> 1000 -> 100 (output)
+		# {ndim_x + ndim_y} (input) -> 2000 -> 1000 -> 100 (output)
 		# encoder_xy_z_hidden_units = [2000, 1000]
-		self.encoder_xy_z_hidden_units = [600, 600]
+		self.encoder_xy_z_hidden_units = [500]
 		self.encoder_xy_z_activation_function = "softplus"
-		self.encoder_xy_z_apply_dropout = True
+		self.encoder_xy_z_apply_dropout = False
 		self.encoder_xy_z_apply_batchnorm = True
 		self.encoder_xy_z_apply_batchnorm_to_input = True
 
-		self.encoder_x_y_hidden_units = [600, 600]
+		self.encoder_x_y_hidden_units = [500]
 		self.encoder_x_y_activation_function = "softplus"
-		self.encoder_x_y_apply_dropout = True
+		self.encoder_x_y_apply_dropout = False
 		self.encoder_x_y_apply_batchnorm = True
 		self.encoder_x_y_apply_batchnorm_to_input = True
 
 		# e.g.
-		# ndim_z + ndim_y(input) -> 2000 -> 1000 -> 100 (output)
+		# {ndim_z + ndim_y} (input) -> 2000 -> 1000 -> 100 (output)
 		# decoder_hidden_units = [2000, 1000]
-		self.decoder_hidden_units = [600, 600]
+		self.decoder_hidden_units = [500]
 		self.decoder_activation_function = "softplus"
-		self.decoder_apply_dropout = True
+		self.decoder_apply_dropout = False
 		self.decoder_apply_batchnorm = True
 		self.decoder_apply_batchnorm_to_input = True
 
 		self.gpu_enabled = True
 		self.learning_rate = 0.0003
 		self.gradient_momentum = 0.9
-		self.gradient_clipping = 1.0
+		self.gradient_clipping = 5.0
 
 	def check(self):
 		pass
@@ -78,7 +83,7 @@ class GradientClipping(object):
 	def __call__(self, opt):
 		norm = np.sqrt(sum_sqnorm([p.grad for p in opt.target.params()]))
 		if norm == 0:
-			norm = 1
+			return
 		rate = self.threshold / norm
 		if rate < 1:
 			for param in opt.target.params():
@@ -214,8 +219,8 @@ class VAE():
 	def log_px_zy(self, x, z, y, test=False):
 		if isinstance(self.decoder, BernoulliDecoder):
 			# do not apply F.sigmoid to the output of the decoder
-			x_expectation = self.decoder(z, y, test=test, apply_f=False)
-			negative_log_likelihood = self.bernoulli_nll_keepbatch(x, x_expectation)
+			raw_output = self.decoder(z, y, test=test, apply_f=False)
+			negative_log_likelihood = self.bernoulli_nll_keepbatch(x, raw_output)
 			log_px_zy = -negative_log_likelihood
 		else:
 			x_mean, x_ln_var = self.decoder(z, y, test=test, apply_f=False)
@@ -225,13 +230,17 @@ class VAE():
 
 	def log_py(self, y, test=False):
 		xp = self.xp
+		num_types_of_label = y.data.shape[1]
 		# prior p(y) expecting that all classes are evenly distributed
-		constant = math.log(1.0 / y.data.shape[1])
+		constant = math.log(1.0 / num_types_of_label)
 		log_py = xp.full((y.data.shape[0],), constant, xp.float32)
 		return Variable(log_py)
 
 	def log_pz(self, z, mean, ln_var, test=False):
 		if self.type_pz == "gaussianmarg":
+			# \int q(z)logp(z)dz = -(J/2)*log2pi - (1/2)*sum_{j=1}^{J} (mu^2 + var)
+			# See Appendix B [Auto-Encoding Variational Bayes](http://arxiv.org/abs/1312.6114)
+			# See https://github.com/dpkingma/nips14-ssl/blob/master/anglepy/models/VAE_YZ_X.py line 106
 			log_pz = -0.5 * (math.log(2.0 * math.pi) + mean * mean + F.exp(ln_var))
 		elif self.type_pz == "gaussian":
 			log_pz = -0.5 * math.log(2.0 * math.pi) - 0.5 * z ** 2
@@ -239,9 +248,12 @@ class VAE():
 
 	def log_qz_xy(self, z, mean, ln_var, test=False):
 		if self.type_qz == "gaussianmarg":
+			# \int q(z)logq(z)dz = -(J/2)*log2pi - (1/2)*sum_{j=1}^{J} (1 + logvar)
+			# See Appendix B [Auto-Encoding Variational Bayes](http://arxiv.org/abs/1312.6114)
+			# See https://github.com/dpkingma/nips14-ssl/blob/master/anglepy/models/VAE_YZ_X.py line 118
 			log_qz_xy = -0.5 * F.sum((math.log(2.0 * math.pi) + 1 + ln_var), axis=1)
 		elif self.type_qz == "gaussian":
-			log_qz_xy = -self.gaussian_nll_keepbatch(z, z_mean, z_ln_var)
+			log_qz_xy = -self.gaussian_nll_keepbatch(z, mean, ln_var)
 		return log_qz_xy
 
 	def train(self, labeled_x, labeled_y, label_ids, unlabeled_x, test=False):
@@ -302,19 +314,20 @@ class VAE():
 			log_qz_xy_l = self.log_qz_xy(z_l, z_mean_l, z_ln_var_l, test=test)
 			lower_bound_l = lower_bound(log_px_zy_l, log_py_l, log_pz_l, log_qz_xy_l)
 		else:
+			# Another form of lower bound but this does not achieve the accuracy (97% M1+M2) described in the paper 
 			lower_bound_l = log_px_zy_l + log_py_l - self.gaussian_kl_divergence_keepbatch(z_mean_l, z_ln_var_l)
 
 		### Lower bound for unlabeled data ###
 		# To marginalize y, we repeat unlabeled x, and construct a target (batchsize_u * num_types_of_label) x num_types_of_label
 		# Example of n-dimensional x and target matrix for a 3 class problem and batch_size=2.
-		#            unlabeled_x_ext                  y_ext
+		#            unlabeled_x_ext                 y_ext
 		#  [[x[0,0], x[0,1], ..., x[0,n]]         [[1, 0, 0]
 		#   [x[1,0], x[1,1], ..., x[1,n]]          [1, 0, 0]
 		#   [x[0,0], x[0,1], ..., x[0,n]]          [0, 1, 0]
 		#   [x[1,0], x[1,1], ..., x[1,n]]          [0, 1, 0]
 		#   [x[0,0], x[0,1], ..., x[0,n]]          [0, 0, 1]
 		#   [x[1,0], x[1,1], ..., x[1,n]]]         [0, 0, 1]]
-		# We thunk Lars Maaloe for this idea.
+		# We thank Lars Maaloe for this idea.
 		# See https://github.com/larsmaaloee/auxiliary-deep-generative-models
 
 		unlabeled_x_ext = xp.zeros((batchsize_u * num_types_of_label, unlabeled_x.data.shape[1]), dtype=xp.float32)
@@ -335,13 +348,14 @@ class VAE():
 			log_qz_xy_u = self.log_qz_xy(z_u_ext, z_mean_u_ext, z_mean_ln_var_u_ext, test=test)
 			lower_bound_u = lower_bound(log_px_zy_u, log_py_u, log_pz_u, log_qz_xy_u)
 		else:
+			# Another form of lower bound but this does not achieve the accuracy (97% M1+M2) described in the paper 
 			lower_bound_u = log_px_zy_u + log_py_u - self.gaussian_kl_divergence_keepbatch(z_mean_u_ext, z_mean_ln_var_u_ext)
 
 		# Compute eq.7 sum_y{q(y|x){-L(x,y) + H(q(y|x))}}
-		# LB(x, y) represents lower bound for an input image x and a label y (y = 0, 1, ..., 9).
-		# bs represents batchsize.
+		# Let LB(x, y) be the lower bound for an input image x and a label y (y = 0, 1, ..., 9).
+		# Let bs be the batchsize.
 		# 
-		# lower_bound_u is a vector contains...
+		# lower_bound_u is a vector and it looks like..
 		# [LB(x0,0), LB(x1,0), ..., LB(x_bs,0), LB(x0,1), LB(x1,1), ..., LB(x_bs,1), ..., LB(x0,9), LB(x1,9), ..., LB(x_bs,9)]
 		# 
 		# After reshaping. (axis 1 corresponds to label, axis 2 corresponds to batch)
@@ -359,19 +373,14 @@ class VAE():
 		#                           .
 		#                           .
 		#  [LB(x_bs,0), LB(x_bs,1), ..., LB(x_bs,9)]]
-		y_distribution = self.encoder_x_y(unlabeled_x, test=test, softmax=True)
 		lower_bound_u = F.transpose(F.reshape(lower_bound_u, (num_types_of_label, batchsize_u)))
+		
+		y_distribution = self.encoder_x_y(unlabeled_x, test=test, softmax=True)
 		lower_bound_u = y_distribution * (lower_bound_u - F.log(y_distribution + 1e-6))
 
 		loss_labeled = -F.sum(lower_bound_l) / batchsize_l
 		loss_unlabeled = -F.sum(lower_bound_u) / batchsize_u
 		loss = loss_labeled + loss_unlabeled
-
-		val = cuda.to_cpu(loss.data)
-		if val != val:
-			print "You have encountered NaN!"
-			import pdb
-			pdb.set_trace()
 
 		return loss, loss_labeled, loss_unlabeled
 
@@ -557,7 +566,7 @@ class SoftmaxEncoder(chainer.Chain):
 		self.activation_function = "softplus"
 		self.apply_batchnorm_to_input = True
 		self.apply_batchnorm = True
-		self.apply_dropout = True
+		self.apply_dropout = False
 		self.batchnorm_before_activation = True
 
 	@property
@@ -605,7 +614,7 @@ class GaussianEncoder(chainer.Chain):
 		self.activation_function = "softplus"
 		self.apply_batchnorm_to_input = True
 		self.apply_batchnorm = True
-		self.apply_dropout = True
+		self.apply_dropout = False
 		self.batchnorm_before_activation = True
 
 	@property
@@ -616,7 +625,10 @@ class GaussianEncoder(chainer.Chain):
 		f = activations[self.activation_function]
 
 		if self.apply_batchnorm_to_input:
-			merged_input = f(self.batchnorm_merge(self.layer_merge_x(x) + self.layer_merge_y(y), test=test))
+			if self.batchnorm_before_activation:
+				merged_input = f(self.batchnorm_merge(self.layer_merge_x(x) + self.layer_merge_y(y), test=test))
+			else:
+				merged_input = f(self.layer_merge_x(self.batchnorm_merge(x, test=test)) + self.layer_merge_y(y))
 		else:
 			merged_input = f(self.layer_merge_x(x) + self.layer_merge_y(y))
 
@@ -639,7 +651,7 @@ class GaussianEncoder(chainer.Chain):
 		u = chain[-1]
 		mean = self.layer_output_mean(u)
 
-		# log(sigma^2)
+		# log(sd^2)
 		u = chain[-1]
 		ln_var = self.layer_output_var(u)
 
@@ -666,7 +678,10 @@ class BernoulliDecoder(SoftmaxEncoder):
 		f = activations[self.activation_function]
 
 		if self.apply_batchnorm_to_input:
-			merged_input = f(self.batchnorm_merge(self.layer_merge_z(z) + self.layer_merge_y(y), test=test))
+			if self.batchnorm_before_activation:
+				merged_input = f(self.batchnorm_merge(self.layer_merge_z(z) + self.layer_merge_y(y), test=test))
+			else:
+				merged_input = f(self.layer_merge_z(self.batchnorm_merge(z, test=test)) + self.layer_merge_y(y))
 		else:
 			merged_input = f(self.layer_merge_z(z) + self.layer_merge_y(y))
 
@@ -697,5 +712,5 @@ class BernoulliDecoder(SoftmaxEncoder):
 	def __call__(self, z, y, test=False, apply_f=False):
 		output = self.forward_one_step(z, y, test=test)
 		if apply_f:
-			return (F.sigmoid(output) - 0.5) * 2.0
+			return F.sigmoid(output)
 		return output
