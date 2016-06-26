@@ -24,6 +24,9 @@ class Conf():
 		self.ndim_y = 10
 		self.ndim_z = 100
 		self.batchnorm_before_activation = True
+		# gaussianmarg | gaussian
+		self.type_pz = "gaussianmarg"
+		self.type_qz = "gaussianmarg"
 
 		# e.g.
 		# ndim_x + ndim_y(input) -> 2000 -> 1000 -> 100 (output)
@@ -104,6 +107,9 @@ class VAE():
 		self.optimizer_decoder.setup(self.decoder)
 		# self.optimizer_decoder.add_hook(optimizer.WeightDecay(0.00001))
 		self.optimizer_decoder.add_hook(GradientClipping(conf.gradient_clipping))
+
+		self.type_pz = conf.type_pz
+		self.type_qz = conf.type_qz
 
 	def build(self, conf):
 		raise Exception()
@@ -190,7 +196,11 @@ class VAE():
 		nll = F.softplus(y) - x * y
 		return F.sum(nll, axis=1)
 
-	def gaussian_nll_keepbatch(self, x, mean, ln_var):
+	def gaussian_nll_keepbatch(self, x, mean, ln_var, clip=True):
+		if clip:
+			clip_min = math.log(0.001)
+			clip_max = math.log(10)
+			ln_var = F.clip(ln_var, clip_min, clip_max)
 		x_prec = F.exp(-ln_var)
 		x_diff = x - mean
 		x_power = (x_diff * x_diff) * x_prec * 0.5
@@ -220,21 +230,19 @@ class VAE():
 		log_py = xp.full((y.data.shape[0],), constant, xp.float32)
 		return Variable(log_py)
 
-	def log_pz(self, z, test=False):
-		constant = -0.5 * math.log(2.0 * math.pi)
-		log_pz = constant - 0.5 * z ** 2
+	def log_pz(self, z, mean, ln_var, test=False):
+		if self.type_pz == "gaussianmarg":
+			log_pz = -0.5 * (math.log(2.0 * math.pi) + mean * mean + F.exp(ln_var))
+		elif self.type_pz == "gaussian":
+			log_pz = -0.5 * math.log(2.0 * math.pi) - 0.5 * z ** 2
 		return F.sum(log_pz, axis=1)
 
-	def log_qz_xy(self, x, y, z, test=False):
-		z_mean, z_ln_var = self.encoder_xy_z(x, y, test=test, apply_f=False)
-		negative_log_likelihood = self.gaussian_nll_keepbatch(z, z_mean, z_ln_var)
-		log_qz_xy = -negative_log_likelihood
+	def log_qz_xy(self, z, mean, ln_var, test=False):
+		if self.type_qz == "gaussianmarg":
+			log_qz_xy = -0.5 * F.sum((math.log(2.0 * math.pi) + 1 + ln_var), axis=1)
+		elif self.type_qz == "gaussian":
+			log_qz_xy = -self.gaussian_nll_keepbatch(z, z_mean, z_ln_var)
 		return log_qz_xy
-
-	def log_qy_x(self, x, y, test=False):
-		y_expectation = self.encoder_x_y(x, test=False, softmax=True)
-		log_qy_x = y * F.log(y_expectation + 1e-6)
-		return log_qy_x
 
 	def train(self, labeled_x, labeled_y, label_ids, unlabeled_x, test=False):
 		loss, loss_labeled, loss_unlabeled = self.compute_lower_bound_loss(labeled_x, labeled_y, label_ids, unlabeled_x, test=test)
@@ -285,12 +293,16 @@ class VAE():
 
 		### Lower bound for labeled data ###
 		# Compute eq.6 -L(x,y)
+		z_mean_l, z_ln_var_l = self.encoder_xy_z(labeled_x, labeled_y, test=test, apply_f=False)
 		z_l = self.encoder_xy_z(labeled_x, labeled_y, test=test)
 		log_px_zy_l = self.log_px_zy(labeled_x, z_l, labeled_y, test=test)
 		log_py_l = self.log_py(labeled_y, test=test)
-		log_pz_l = self.log_pz(z_l, test=test)
-		log_qz_xy_l = self.log_qz_xy(labeled_x, labeled_y, z_l, test=test)
-		lower_bound_l = lower_bound(log_px_zy_l, log_py_l, log_pz_l, log_qz_xy_l)
+		if True:
+			log_pz_l = self.log_pz(z_l, z_mean_l, z_ln_var_l, test=test)
+			log_qz_xy_l = self.log_qz_xy(z_l, z_mean_l, z_ln_var_l, test=test)
+			lower_bound_l = lower_bound(log_px_zy_l, log_py_l, log_pz_l, log_qz_xy_l)
+		else:
+			lower_bound_l = log_px_zy_l + log_py_l - self.gaussian_kl_divergence_keepbatch(z_mean_l, z_ln_var_l)
 
 		### Lower bound for unlabeled data ###
 		# To marginalize y, we repeat unlabeled x, and construct a target (batchsize_u * num_types_of_label) x num_types_of_label
@@ -314,12 +326,16 @@ class VAE():
 		unlabeled_x_ext = Variable(unlabeled_x_ext)
 
 		# Compute eq.6 -L(x,y) for unlabeled data
-		z_u = self.encoder_xy_z(unlabeled_x_ext, y_ext, test=test)
-		log_px_zy_u = self.log_px_zy(unlabeled_x_ext, z_u, y_ext, test=test)
+		z_mean_u_ext, z_mean_ln_var_u_ext = self.encoder_xy_z(unlabeled_x_ext, y_ext, test=test, apply_f=False)
+		z_u_ext = F.gaussian(z_mean_u_ext, z_mean_ln_var_u_ext)
+		log_px_zy_u = self.log_px_zy(unlabeled_x_ext, z_u_ext, y_ext, test=test)
 		log_py_u = self.log_py(y_ext, test=test)
-		log_pz_u = self.log_pz(z_u, test=test)
-		log_qz_xy_u = self.log_qz_xy(unlabeled_x_ext, y_ext, z_u, test=test)
-		lower_bound_u = lower_bound(log_px_zy_u, log_py_u, log_pz_u, log_qz_xy_u)
+		if True:
+			log_pz_u = self.log_pz(z_u_ext, z_mean_u_ext, z_mean_ln_var_u_ext, test=test)
+			log_qz_xy_u = self.log_qz_xy(z_u_ext, z_mean_u_ext, z_mean_ln_var_u_ext, test=test)
+			lower_bound_u = lower_bound(log_px_zy_u, log_py_u, log_pz_u, log_qz_xy_u)
+		else:
+			lower_bound_u = log_px_zy_u + log_py_u - self.gaussian_kl_divergence_keepbatch(z_mean_u_ext, z_mean_ln_var_u_ext)
 
 		# Compute eq.7 sum_y{q(y|x){-L(x,y) + H(q(y|x))}}
 		# LB(x, y) represents lower bound for an input image x and a label y (y = 0, 1, ..., 9).

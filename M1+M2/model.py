@@ -8,13 +8,13 @@ conf1 = Conf1()
 conf1.gpu_enabled = True if args.gpu_enabled == 1 else False
 conf1.ndim_x = 28 * 28
 conf1.ndim_z = 50
-conf1.encoder_apply_dropout = True
-conf1.decoder_apply_dropout = True
+conf1.encoder_apply_dropout = False
+conf1.decoder_apply_dropout = False
 conf1.encoder_apply_batchnorm = True
 conf1.decoder_apply_batchnorm = True
 conf1.encoder_apply_batchnorm_to_input = True
 conf1.decoder_apply_batchnorm_to_input = True
-conf1.gradient_clipping = 5.0
+conf1.gradient_clipping = 1.0
 conf1.encoder_hidden_units = [600, 600]
 conf1.decoder_hidden_units = [600, 600]
 vae1 = BernoulliM1VAE(conf1, name="m1")
@@ -24,13 +24,13 @@ vae1.load(args.model_dir)
 conf2 = Conf2()
 conf2.gpu_enabled = True if args.gpu_enabled == 1 else False
 conf2.ndim_x = 50
-conf2.ndim_z = 10
+conf2.ndim_z = 50
 conf2.encoder_xy_z_hidden_units = [500]
 conf2.encoder_x_y_hidden_units = [500]
 conf2.decoder_hidden_units = [500]
-conf2.encoder_xy_z_apply_dropout = True
-conf2.encoder_x_y_apply_dropout = True
-conf2.decoder_apply_dropout = True
+conf2.encoder_xy_z_apply_dropout = False
+conf2.encoder_x_y_apply_dropout = False
+conf2.decoder_apply_dropout = False
 conf2.encoder_xy_z_apply_batchnorm = True
 conf2.encoder_x_y_apply_batchnorm = True
 conf2.decoder_apply_batchnorm = True
