@@ -5,9 +5,9 @@ from vae_m2 import BernoulliM2VAE, GaussianM2VAE, Conf
 conf = Conf()
 conf.gpu_enabled = True if args.gpu_enabled == 1 else False
 conf.ndim_z = 50
-conf.encoder_xy_z_apply_dropout = True
-conf.encoder_x_y_apply_dropout = True
-conf.decoder_apply_dropout = True
+conf.encoder_xy_z_apply_dropout = False
+conf.encoder_x_y_apply_dropout = False
+conf.decoder_apply_dropout = False
 conf.encoder_xy_z_apply_batchnorm_to_input = True
 conf.encoder_x_y_apply_batchnorm_to_input = True
 conf.decoder_apply_batchnorm_to_input = True

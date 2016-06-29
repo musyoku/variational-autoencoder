@@ -236,6 +236,7 @@ class VAE():
 		log_py = xp.full((y.data.shape[0],), constant, xp.float32)
 		return Variable(log_py)
 
+	# this will not be used for bernoulli decoder
 	def log_pz(self, z, mean, ln_var, test=False):
 		if self.type_pz == "gaussianmarg":
 			# \int q(z)logp(z)dz = -(J/2)*log2pi - (1/2)*sum_{j=1}^{J} (mu^2 + var)
@@ -246,6 +247,7 @@ class VAE():
 			log_pz = -0.5 * math.log(2.0 * math.pi) - 0.5 * z ** 2
 		return F.sum(log_pz, axis=1)
 
+	# this will not be used for bernoulli decoder
 	def log_qz_xy(self, z, mean, ln_var, test=False):
 		if self.type_qz == "gaussianmarg":
 			# \int q(z)logq(z)dz = -(J/2)*log2pi - (1/2)*sum_{j=1}^{J} (1 + logvar)
@@ -269,7 +271,7 @@ class VAE():
 
 	# Extended objective eq.9
 	def train_classification(self, labeled_x, label_ids, alpha=1.0, test=False):
-		loss = self.compute_classification_loss(labeled_x, label_ids, alpha=alpha, test=test)
+		loss = alpha * self.compute_classification_loss(labeled_x, label_ids, test=test)
 		self.zero_grads_classifier()
 		loss.backward()
 		self.update_classifier()
@@ -279,7 +281,7 @@ class VAE():
 
 	def train_jointly(self, labeled_x, labeled_y, label_ids, unlabeled_x, alpha=1.0, test=False):
 		loss_lower_bound, loss_lb_labled, loss_lb_unlabled = self.compute_lower_bound_loss(labeled_x, labeled_y, label_ids, unlabeled_x, test=test)
-		loss_classification = self.compute_classification_loss(labeled_x, label_ids, alpha=alpha, test=test)
+		loss_classification = alpha * self.compute_classification_loss(labeled_x, label_ids, test=test)
 		loss = loss_lower_bound + loss_classification
 		self.zero_grads()
 		loss.backward()
@@ -309,25 +311,26 @@ class VAE():
 		z_l = self.encoder_xy_z(labeled_x, labeled_y, test=test)
 		log_px_zy_l = self.log_px_zy(labeled_x, z_l, labeled_y, test=test)
 		log_py_l = self.log_py(labeled_y, test=test)
-		if True:
+		if isinstance(self, GaussianM2VAE):
 			log_pz_l = self.log_pz(z_l, z_mean_l, z_ln_var_l, test=test)
 			log_qz_xy_l = self.log_qz_xy(z_l, z_mean_l, z_ln_var_l, test=test)
 			lower_bound_l = lower_bound(log_px_zy_l, log_py_l, log_pz_l, log_qz_xy_l)
 		else:
 			# Another form of lower bound but this does not achieve the accuracy (97% M1+M2) described in the paper 
+			# when decoder(M2) is gaussian.
 			lower_bound_l = log_px_zy_l + log_py_l - self.gaussian_kl_divergence_keepbatch(z_mean_l, z_ln_var_l)
 
 		### Lower bound for unlabeled data ###
 		# To marginalize y, we repeat unlabeled x, and construct a target (batchsize_u * num_types_of_label) x num_types_of_label
 		# Example of n-dimensional x and target matrix for a 3 class problem and batch_size=2.
-		#            unlabeled_x_ext                 y_ext
-		#  [[x[0,0], x[0,1], ..., x[0,n]]         [[1, 0, 0]
-		#   [x[1,0], x[1,1], ..., x[1,n]]          [1, 0, 0]
-		#   [x[0,0], x[0,1], ..., x[0,n]]          [0, 1, 0]
-		#   [x[1,0], x[1,1], ..., x[1,n]]          [0, 1, 0]
-		#   [x[0,0], x[0,1], ..., x[0,n]]          [0, 0, 1]
-		#   [x[1,0], x[1,1], ..., x[1,n]]]         [0, 0, 1]]
-		# We thank Lars Maaloe for this idea.
+		#         unlabeled_x_ext                 y_ext
+		#  [[x0[0], x0[1], ..., x0[n]]         [[1, 0, 0]
+		#   [x1[0], x1[1], ..., x1[n]]          [1, 0, 0]
+		#   [x0[0], x0[1], ..., x0[n]]          [0, 1, 0]
+		#   [x1[0], x1[1], ..., x1[n]]          [0, 1, 0]
+		#   [x0[0], x0[1], ..., x0[n]]          [0, 0, 1]
+		#   [x1[0], x1[1], ..., x1[n]]]         [0, 0, 1]]
+		# We thank Lars Maaloe.
 		# See https://github.com/larsmaaloee/auxiliary-deep-generative-models
 
 		unlabeled_x_ext = xp.zeros((batchsize_u * num_types_of_label, unlabeled_x.data.shape[1]), dtype=xp.float32)
@@ -343,35 +346,36 @@ class VAE():
 		z_u_ext = F.gaussian(z_mean_u_ext, z_mean_ln_var_u_ext)
 		log_px_zy_u = self.log_px_zy(unlabeled_x_ext, z_u_ext, y_ext, test=test)
 		log_py_u = self.log_py(y_ext, test=test)
-		if True:
+		if isinstance(self, GaussianM2VAE):
 			log_pz_u = self.log_pz(z_u_ext, z_mean_u_ext, z_mean_ln_var_u_ext, test=test)
 			log_qz_xy_u = self.log_qz_xy(z_u_ext, z_mean_u_ext, z_mean_ln_var_u_ext, test=test)
 			lower_bound_u = lower_bound(log_px_zy_u, log_py_u, log_pz_u, log_qz_xy_u)
 		else:
 			# Another form of lower bound but this does not achieve the accuracy (97% M1+M2) described in the paper 
+			# when decoder(M2) is gaussian.
 			lower_bound_u = log_px_zy_u + log_py_u - self.gaussian_kl_divergence_keepbatch(z_mean_u_ext, z_mean_ln_var_u_ext)
 
 		# Compute eq.7 sum_y{q(y|x){-L(x,y) + H(q(y|x))}}
-		# Let LB(x, y) be the lower bound for an input image x and a label y (y = 0, 1, ..., 9).
+		# Let LB(xn, y) be the lower bound for an input image xn and a label y (y = 0, 1, ..., 9).
 		# Let bs be the batchsize.
 		# 
-		# lower_bound_u is a vector and it looks like..
+		# lower_bound_u is a vector and it looks like...
 		# [LB(x0,0), LB(x1,0), ..., LB(x_bs,0), LB(x0,1), LB(x1,1), ..., LB(x_bs,1), ..., LB(x0,9), LB(x1,9), ..., LB(x_bs,9)]
 		# 
 		# After reshaping. (axis 1 corresponds to label, axis 2 corresponds to batch)
 		# [[LB(x0,0), LB(x1,0), ..., LB(x_bs,0)],
 		#  [LB(x0,1), LB(x1,1), ..., LB(x_bs,1)],
-		#                           .
-		#                           .
-		#                           .
+		#                   .
+		#                   .
+		#                   .
 		#  [LB(x0,9), LB(x1,9), ..., LB(x_bs,9)]]
 		# 
 		# After transposing. (axis 1 corresponds to batch)
 		# [[LB(x0,0), LB(x0,1), ..., LB(x0,9)],
 		#  [LB(x1,0), LB(x1,1), ..., LB(x1,9)],
-		#                           .
-		#                           .
-		#                           .
+		#                   .
+		#                   .
+		#                   .
 		#  [LB(x_bs,0), LB(x_bs,1), ..., LB(x_bs,9)]]
 		lower_bound_u = F.transpose(F.reshape(lower_bound_u, (num_types_of_label, batchsize_u)))
 		
@@ -385,12 +389,12 @@ class VAE():
 		return loss, loss_labeled, loss_unlabeled
 
 	# Extended objective eq.9
-	def compute_classification_loss(self, labeled_x, label_ids, alpha=1.0, test=False):
+	def compute_classification_loss(self, labeled_x, label_ids, test=False):
 		y_distribution = self.encoder_x_y(labeled_x, softmax=False, test=test)
 		batchsize = labeled_x.data.shape[0]
 		num_types_of_label = y_distribution.data.shape[1]
 
-		loss = alpha * F.softmax_cross_entropy(y_distribution, label_ids)
+		loss = F.softmax_cross_entropy(y_distribution, label_ids)
 		return loss
 
 	def load(self, dir=None):
@@ -687,6 +691,7 @@ class BernoulliDecoder(SoftmaxEncoder):
 
 		chain = [merged_input]
 
+		# Hidden
 		for i in range(self.n_layers):
 			u = chain[-1]
 			if self.batchnorm_before_activation:
