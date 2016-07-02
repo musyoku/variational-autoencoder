@@ -37,7 +37,7 @@ To visualize results, you need
 
 ### M2
 
-#### Training details
+##### Model details
 
 | params | value |
 |:-----------|------------:|
@@ -61,6 +61,8 @@ To visualize results, you need
 #### Result
 
 ##### Classification
+
+######  Training details
 
 | data | # |
 |:-----------|------------:|
