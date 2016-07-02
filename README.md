@@ -15,6 +15,26 @@ To visualize results, you need
 - PIL
 - pandas
 
+#### Download MNIST
+
+run `mnist-tools.py` to download and extract MNIST.
+
+#### How to label my own dataset? 
+
+You can provide label information by filename.
+
+format:
+
+`{label_id}_{unique_filename}.{extension}`
+
+regex:
+
+`([0-9]+)_.+\.(bmp|png|jpg)`
+
+e.g. MNIST
+![labeling](http://musyoku.github.io/images/post/2016-07-02/labeling.png)
+
+
 ## M1
 
 #### Parameters
