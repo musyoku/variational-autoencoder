@@ -32,6 +32,7 @@ regex:
 `([0-9]+)_.+\.(bmp|png|jpg)`
 
 e.g. MNIST
+
 ![labeling](http://musyoku.github.io/images/post/2016-07-02/labeling.png)
 
 
