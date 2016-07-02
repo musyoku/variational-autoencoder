@@ -19,7 +19,7 @@ To visualize results, you need
 
 | params | value |
 |:-----------|------------:|
-| OS | Windows |
+| OS | Windows 7 |
 | GPU | GeForce GTX 970M |
 | ndim_z | 2 |
 | encoder_apply_dropout | False |
@@ -47,7 +47,7 @@ To visualize results, you need
 
 | params | value |
 |:-----------|------------:|
-| OS | Windows |
+| OS | Windows 7 |
 | GPU | GeForce GTX 970M |
 | ndim_z | 50 |
 | encoder_xy_z_apply_dropout | False |
@@ -113,7 +113,7 @@ run `analogy.py` after training
 
 | params | value |
 |:-----------|------------:|
-| OS | Windows |
+| OS | Windows 7 |
 | GPU | GeForce GTX 970M |
 | ndim_z | 2 |
 | encoder_apply_dropout | False |
@@ -129,6 +129,8 @@ run `analogy.py` after training
 | gradient_momentum | 0.9 |
 | gradient_clipping | 1.0 |
 
+We trained M1 for 500 epochs before starting training of M2.
+
 | * | # |
 |:-----------|------------:|
 | epochs | 500 |
@@ -139,7 +141,7 @@ run `analogy.py` after training
 
 | params | value |
 |:-----------|------------:|
-| OS | Windows |
+| OS | Windows 7 |
 | GPU | GeForce GTX 970M |
 | ndim_z | 50 |
 | encoder_xy_z_apply_dropout | False |
