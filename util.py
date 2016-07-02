@@ -90,16 +90,17 @@ def create_semisupervised(dataset, labels, num_validation_data=10000, num_labele
 		return False
 
 	for n in xrange(len(dataset)):
-		if check(n):
-			indices_for_label[labels[n]].append(n)
-			training_labeled_x.append(dataset[n])
-			training_labels.append(labels[n])
+		index = indices[n]
+		if check(index):
+			indices_for_label[labels[index]].append(index)
+			training_labeled_x.append(dataset[index])
+			training_labels.append(labels[index])
 		else:
 			if len(training_unlabeled_x) < num_unlabeled_data:
-				training_unlabeled_x.append(dataset[n])
+				training_unlabeled_x.append(dataset[index])
 			else:
-				validation_x.append(dataset[n])
-				validation_labels.append(labels[n])
+				validation_x.append(dataset[index])
+				validation_labels.append(labels[index])
 
 	return training_labeled_x, training_labels, training_unlabeled_x, validation_x, validation_labels
 
