@@ -13,7 +13,7 @@ To visualize results, you need
 - PIL
 - pandas
 
-### M1
+## M1
 
 #### Parameters
 
@@ -41,7 +41,7 @@ To visualize results, you need
 
 ![M1](http://musyoku.github.io/images/post/2016-07-02/m1_latent_space.png)
 
-### M2
+## M2
 
 ##### Parameters
 
@@ -105,7 +105,7 @@ run `analogy.py` after training
 ![M2](http://musyoku.github.io/images/post/2016-07-02/m2_analogy_100.png)
 
 
-### M2
+## M1+M2
 
 ##### Parameters
 
@@ -135,7 +135,7 @@ run `analogy.py` after training
 | minutes | 860 |
 | weight updates per an epoch | 2000 |
 
-##### M1+M2
+##### M2
 
 | params | value |
 |:-----------|------------:|
