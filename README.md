@@ -110,7 +110,7 @@ e.g. MNIST
 |:-----------|------------:|
 | epochs | 490 |
 | minutes | 1412 |
-| weight updates per an epoch | 2000 |
+| weight updates per epoch | 2000 |
 
 ###### Validation accuracy:
 
@@ -177,7 +177,7 @@ We trained M1 for 500 epochs before starting training of M2.
 |:-----------|------------:|
 | epochs | 500 |
 | minutes | 860 |
-| weight updates per an epoch | 2000 |
+| weight updates per epoch | 2000 |
 
 ##### M2
 
@@ -224,7 +224,7 @@ We trained M1 for 500 epochs before starting training of M2.
 |:-----------|------------:|
 | epochs | 600 |
 | minutes | 4920 |
-| weight updates per an epoch | 5000 |
+| weight updates per epoch | 5000 |
 
 ###### Validation accuracy:
 
