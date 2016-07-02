@@ -85,13 +85,13 @@ To visualize results, you need
 |:-----------|------------:|
 | epochs | 490 |
 | minutes | 1412 |
-| params updates per an epoch | 2000 |
+| weight updates per an epoch | 2000 |
 
-Validation accuracy:
+###### Validation accuracy:
 
 ![M2](http://musyoku.github.io/images/post/2016-07-02/m2_validation_accuracy.png)
 
-Test accuracy: **0.9018**
+###### Test accuracy: **0.9018**
 
 ##### Analogies
 
@@ -133,9 +133,9 @@ run `analogy.py` after training
 |:-----------|------------:|
 | epochs | 500 |
 | minutes | 860 |
-| params updates per an epoch | 2000 |
+| weight updates per an epoch | 2000 |
 
-##### M2
+##### M1+M2
 
 | params | value |
 |:-----------|------------:|
@@ -179,13 +179,15 @@ run `analogy.py` after training
 |:-----------|------------:|
 | epochs | 600 |
 | minutes | 4920 |
-| params updates per an epoch | 5000 |
+| weight updates per an epoch | 5000 |
 
-Validation accuracy:
+###### Validation accuracy:
 
 ![M1+M2](http://musyoku.github.io/images/post/2016-07-02/m1+m2_validation_accuracy.png)
 
-Test accuracy
+###### Test accuracy
 
-seed1: **0.951**
-seed2: **0.954**
+seed1: **0.954**
+
+seed2: **0.951**
+
