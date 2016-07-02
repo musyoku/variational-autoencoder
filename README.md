@@ -2,6 +2,8 @@
 
 Chainer implementation of Variational AutoEncoder(VAE) model M1, M2, M1+M2 
 
+[この記事](http://musyoku.github.io/2016/07/02/semi-supervised-learning-with-deep-generative-models/)で実装したコードです。
+
 ### Requirements
 
 - Chainer 1.8+
