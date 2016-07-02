@@ -23,6 +23,11 @@ class Conf():
 		self.ndim_z = 100
 		self.batchnorm_before_activation = True
 
+		# gaussianmarg | gaussian
+		# We recommend you to use "gaussianmarg" when decoder is gaussian.
+		self.type_pz = "gaussianmarg"
+		self.type_qz = "gaussianmarg"
+
 		# e.g.
 		# ndim_x (input) -> 2000 -> 1000 -> 100 (output)
 		# encoder_hidden_units = [2000, 1000]
@@ -89,6 +94,9 @@ class VAE():
 		# self.optimizer_decoder.add_hook(optimizer.WeightDecay(0.001))
 		self.optimizer_decoder.add_hook(GradientClipping(conf.gradient_clipping))
 
+		self.type_pz = conf.type_pz
+		self.type_qz = conf.type_qz
+		
 	def build(self, conf):
 		raise Exception()
 
@@ -127,6 +135,40 @@ class VAE():
 		var = F.exp(ln_var)
 		kld = F.sum(mean ** 2 + var - ln_var - 1, axis=1) * 0.5
 		return kld
+
+	def log_px_z(self, x, z, test=False):
+		if isinstance(self.decoder, BernoulliDecoder):
+			# do not apply F.sigmoid to the output of the decoder
+			raw_output = self.decoder(z, test=test, apply_f=False)
+			negative_log_likelihood = self.bernoulli_nll_keepbatch(x, raw_output)
+			log_px_z = -negative_log_likelihood
+		else:
+			x_mean, x_ln_var = self.decoder(z, test=test, apply_f=False)
+			negative_log_likelihood = self.gaussian_nll_keepbatch(x, x_mean, x_ln_var)
+			log_px_z = -negative_log_likelihood
+		return log_px_z
+
+	# this will not be used for bernoulli decoder
+	def log_pz(self, z, mean, ln_var):
+		if self.type_pz == "gaussianmarg":
+			# \int q(z)logp(z)dz = -(J/2)*log2pi - (1/2)*sum_{j=1}^{J} (mu^2 + var)
+			# See Appendix B [Auto-Encoding Variational Bayes](http://arxiv.org/abs/1312.6114)
+			# See https://github.com/dpkingma/nips14-ssl/blob/master/anglepy/models/VAE_YZ_X.py line 106
+			log_pz = -0.5 * (math.log(2.0 * math.pi) + mean * mean + F.exp(ln_var))
+		elif self.type_pz == "gaussian":
+			log_pz = -0.5 * math.log(2.0 * math.pi) - 0.5 * z ** 2
+		return F.sum(log_pz, axis=1)
+
+	# this will not be used for bernoulli decoder
+	def log_qz_x(self, z, mean, ln_var):
+		if self.type_qz == "gaussianmarg":
+			# \int q(z)logq(z)dz = -(J/2)*log2pi - (1/2)*sum_{j=1}^{J} (1 + logvar)
+			# See Appendix B [Auto-Encoding Variational Bayes](http://arxiv.org/abs/1312.6114)
+			# See https://github.com/dpkingma/nips14-ssl/blob/master/anglepy/models/VAE_YZ_X.py line 118
+			log_qz_x = -0.5 * F.sum((math.log(2.0 * math.pi) + 1 + ln_var), axis=1)
+		elif self.type_qz == "gaussian":
+			log_qz_x = -self.gaussian_nll_keepbatch(z, mean, ln_var)
+		return log_qz_x
 
 	def load(self, dir=None):
 		if dir is None:
@@ -203,20 +245,21 @@ class GaussianM1VAE(VAE):
 
 	def train(self, x, L=1, test=False):
 		batchsize = x.data.shape[0]
-		z_mean, z_ln_var = self.encoder(x, test=test, sample_output=False)
+		z_mean, z_ln_var = self.encoder(x, test=test, apply_f=False)
 		loss = 0
 		for l in xrange(L):
 			# Sample z
 			z = F.gaussian(z_mean, z_ln_var)
-			# Decode
-			x_reconstruction_mean, x_reconstruction_ln_var = self.decoder(z, test=test, sample_output=False)
-			# E_q(z|x)[log(p(x|z))]
-			loss += self.gaussian_nll_keepbatch(x, x_reconstruction_mean, x_reconstruction_ln_var)
-		if L > 1:
-			loss /= L
-		# KL divergence
-		loss += self.gaussian_kl_divergence_keepbatch(z_mean, z_ln_var)
-		loss = F.sum(loss) / batchsize
+
+			# Compute lower bound
+			log_px_z = self.log_px_z(x, z, test=test)
+			log_pz = self.log_pz(z, z_mean, z_ln_var)
+			log_qz_x = self.log_qz_x(z, z_mean, z_ln_var)
+			lower_bound = log_px_z + log_pz - log_qz_x
+
+			loss += -lower_bound
+
+		loss = F.sum(loss) / L / batchsize
 
 		self.zero_grads()
 		loss.backward()
@@ -274,7 +317,7 @@ class BernoulliM1VAE(VAE):
 
 	def train(self, x, L=1, test=False):
 		batchsize = x.data.shape[0]
-		z_mean, z_ln_var = self.encoder(x, test=test, sample_output=False)
+		z_mean, z_ln_var = self.encoder(x, test=test, apply_f=False)
 		loss = 0
 		for l in xrange(L):
 			# Sample z
@@ -310,7 +353,7 @@ class Encoder(chainer.Chain):
 	def xp(self):
 		return np if self._cpu else cuda.cupy
 
-	def forward_one_step(self, x, test=False, sample_output=True):
+	def forward_one_step(self, x, test=False, apply_f=True):
 		f = activations[self.activation_function]
 
 		chain = [x]
@@ -342,18 +385,18 @@ class Encoder(chainer.Chain):
 
 		return mean, ln_var
 
-	def __call__(self, x, test=False, sample_output=True):
-		mean, ln_var = self.forward_one_step(x, test=test, sample_output=sample_output)
-		if sample_output:
+	def __call__(self, x, test=False, apply_f=True):
+		mean, ln_var = self.forward_one_step(x, test=test, apply_f=apply_f)
+		if apply_f:
 			return F.gaussian(mean, ln_var)
 		return mean, ln_var
 
 # Network structure is same as the Encoder
 class GaussianDecoder(Encoder):
 
-	def __call__(self, x, test=False, sample_output=False):
-		mean, ln_var = self.forward_one_step(x, test=test, sample_output=False)
-		if sample_output:
+	def __call__(self, x, test=False, apply_f=False):
+		mean, ln_var = self.forward_one_step(x, test=test, apply_f=False)
+		if apply_f:
 			return F.gaussian(mean, ln_var)
 		return mean, ln_var
 

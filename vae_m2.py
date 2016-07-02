@@ -29,7 +29,7 @@ class Conf():
 		self.batchnorm_before_activation = True
 
 		# gaussianmarg | gaussian
-		# We recommend you to use "gaussianmarg"
+		# We recommend you to use "gaussianmarg" when decoder is gaussian
 		self.type_pz = "gaussianmarg"
 		self.type_qz = "gaussianmarg"
 
@@ -158,7 +158,7 @@ class VAE():
 		return z
 
 	def decode_zy_x(self, z, y, test=False, apply_f=True):
-		x = self.decoder(z, y, test=False, apply_f=apply_f)
+		x = self.decoder(z, y, test=test, apply_f=apply_f)
 		return x
 
 	def sample_x_y(self, x, argmax=False, test=False):

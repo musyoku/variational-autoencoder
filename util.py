@@ -59,7 +59,7 @@ def load_labeled_images(image_dir, convert_to_grayscale=True, dist="bernoulli"):
 		if i % 100 == 0:
 			sys.stdout.write("\rloading images...({:d} / {:d})".format(i, len(fs)))
 			sys.stdout.flush()
-	sys.stdout.write("\r")
+	sys.stdout.write("\n")
 	return dataset, labels
 
 def create_semisupervised(dataset, labels, num_validation_data=10000, num_labeled_data=100, num_types_of_label=10):
@@ -174,9 +174,9 @@ def visualize_x(reconstructed_x_batch, image_width=28, image_height=28, image_ch
 	for m in range(100):
 		pylab.subplot(10, 10, m + 1)
 		if image_channel == 1:
-			pylab.imshow(np.clip(reconstructed_x_batch[m], 0.0, 1.0).reshape((image_width, image_height)), interpolation="none")
+			pylab.imshow(reconstructed_x_batch[m].reshape((image_width, image_height)), interpolation="none")
 		elif image_channel == 3:
-			pylab.imshow(np.clip(reconstructed_x_batch[m], 0.0, 1.0).reshape((image_channel, image_width, image_height)), interpolation="none")
+			pylab.imshow(reconstructed_x_batch[m].reshape((image_channel, image_width, image_height)), interpolation="none")
 		pylab.axis("off")
 	pylab.savefig("%s/reconstructed_x.png" % dir)
 
