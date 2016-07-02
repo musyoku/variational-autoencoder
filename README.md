@@ -15,7 +15,7 @@ To visualize results, you need
 
 ### M1
 
-#### Training details
+#### Parameters
 
 | params | value |
 |:-----------|------------:|
@@ -30,14 +30,20 @@ To visualize results, you need
 | decoder_apply_batchnorm_to_input | True |
 | encoder_units | [600, 600] |
 | decoder_units | [600, 600] |
+| gradient_clipping | 1.0 |
+| learning_rate | 0.0003 |
+| gradient_momentum | 0.9 |
+| gradient_clipping | 1.0 |
 
 #### Result
 
 ##### Latent space
 
+![M1](http://musyoku.github.io/images/post/2016-07-02/m1_latent_space.png)
+
 ### M2
 
-##### Model details
+##### Parameters
 
 | params | value |
 |:-----------|------------:|
@@ -57,6 +63,10 @@ To visualize results, you need
 | encoder_x_y_hidden_units | [500] |
 | decoder_hidden_units | [500] |
 | batchnorm_before_activation | True |
+| gradient_clipping | 5.0 |
+| learning_rate | 0.0003 |
+| gradient_momentum | 0.9 |
+| gradient_clipping | 1.0 |
 
 #### Result
 
@@ -83,10 +93,99 @@ Validation accuracy:
 
 Test accuracy: **0.9018**
 
-
 ##### Analogies
+
+run `analogy.py` after training
 
 | data | # |
 |:-----------|------------:|
-| labeled | 10000 |
-| unlabeled | 40000 |
+| labeled | 100 |
+| unlabeled | 49900 |
+
+![M2](http://musyoku.github.io/images/post/2016-07-02/m2_analogy_100.png)
+
+
+### M2
+
+##### Parameters
+
+##### M1
+
+| params | value |
+|:-----------|------------:|
+| OS | Windows |
+| GPU | GeForce GTX 970M |
+| ndim_z | 2 |
+| encoder_apply_dropout | False |
+| decoder_apply_dropout | False |
+| encoder_apply_batchnorm | True |
+| decoder_apply_batchnorm | True |
+| encoder_apply_batchnorm_to_input | True |
+| decoder_apply_batchnorm_to_input | True |
+| encoder_units | [600, 600] |
+| decoder_units | [600, 600] |
+| gradient_clipping | 1.0 |
+| learning_rate | 0.0003 |
+| gradient_momentum | 0.9 |
+| gradient_clipping | 1.0 |
+
+| * | # |
+|:-----------|------------:|
+| epochs | 500 |
+| minutes | 860 |
+| params updates per an epoch | 2000 |
+
+##### M2
+
+| params | value |
+|:-----------|------------:|
+| OS | Windows |
+| GPU | GeForce GTX 970M |
+| ndim_z | 50 |
+| encoder_xy_z_apply_dropout | False |
+| encoder_x_y_apply_dropout | False |
+| decoder_apply_dropout | False |
+| encoder_xy_z_apply_batchnorm_to_input | True |
+| encoder_x_y_apply_batchnorm_to_input | True |
+| decoder_apply_batchnorm_to_input | True |
+| encoder_xy_z_apply_batchnorm | True |
+| encoder_x_y_apply_batchnorm | True |
+| decoder_apply_batchnorm | True |
+| encoder_xy_z_hidden_units | [500] |
+| encoder_x_y_hidden_units | [500] |
+| decoder_hidden_units | [500] |
+| batchnorm_before_activation | True |
+| gradient_clipping | 5.0 |
+| learning_rate | 0.0003 |
+| gradient_momentum | 0.9 |
+| gradient_clipping | 1.0 |
+| type_pz | gaussianmarg |
+| type_qz | gaussianmarg |
+
+#### Result
+
+##### Classification
+
+######  Training details
+
+| data | # |
+|:-----------|------------:|
+| labeled | 100 |
+| unlabeled | 49900 |
+| validation | 10000 |
+| test | 10000 |
+
+| * | # |
+|:-----------|------------:|
+| epochs | 600 |
+| minutes | 4920 |
+| params updates per an epoch | 5000 |
+
+Validation accuracy:
+
+![M1+M2](http://musyoku.github.io/images/post/2016-07-02/m1+m2_validation_accuracy.png)
+
+Test accuracy
+
+seed1: **0.951**
+seed2: **0.954**

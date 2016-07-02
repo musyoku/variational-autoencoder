@@ -64,29 +64,24 @@ def load_labeled_images(image_dir, convert_to_grayscale=True, dist="bernoulli"):
 
 def create_semisupervised(dataset, labels, num_validation_data=10000, num_labeled_data=100, num_types_of_label=10):
 	if len(dataset) < num_validation_data + num_labeled_data:
-		raise Exception("too few dataset")
+		raise Exception("len(dataset) < num_validation_data + num_labeled_data")
 	training_labeled_x = []
 	training_unlabeled_x = []
 	validation_x = []
 	validation_labels = []
 	training_labels = []
-	flag = np.zeros((len(dataset),), dtype=np.uint8)
-	FLAG_TRAINING = 0
-	FLAG_LABELED = 1
-	FLAG_VALIDATION = 2
 	indices_for_label = {}
-	num_data_per_label = num_labeled_data / num_types_of_label
-	for n in xrange(num_types_of_label):
-		indices_for_label[n] = []
+	num_data_per_label = int(num_labeled_data / num_types_of_label)
+	num_unlabeled_data = len(dataset) - num_validation_data - num_labeled_data
 
-	# mark as validation data
-	validation_indices = np.random.choice(np.arange(len(dataset), dtype=np.int32), size=num_validation_data, replace=False)
-	for i in xrange(num_validation_data):
-		flag[validation_indices[i]] = FLAG_VALIDATION
+	indices = np.arange(len(dataset))
+	np.random.shuffle(indices)
 
-	# mark as labeled data
-	def a(index):
+	def check(index):
 		label = labels[index]
+		if label not in indices_for_label:
+			indices_for_label[label] = []
+			return True
 		if len(indices_for_label[label]) < num_data_per_label:
 			for i in indices_for_label[label]:
 				if i == index:
@@ -94,34 +89,17 @@ def create_semisupervised(dataset, labels, num_validation_data=10000, num_labele
 			return True
 		return False
 
-	def b():
-		c = 0
-		for n in xrange(num_types_of_label):
-			c += len(indices_for_label[n])
-		return c != num_labeled_data
-
-	while b():
-		indices = np.random.choice(np.arange(len(dataset), dtype=np.int32), size=num_labeled_data, replace=False)
-		for i in xrange(num_labeled_data):
-			index = indices[i]
-			if flag[index] == FLAG_TRAINING and a(index):
-				label = labels[index]
-				indices_for_label[label].append(index)
-				flag[index] = FLAG_LABELED
-				if b() == False:
-					break
-
-	for i in xrange(len(dataset)):
-		if flag[i] == FLAG_TRAINING:
-			training_unlabeled_x.append(dataset[i])
-		elif flag[i] == FLAG_VALIDATION:
-			validation_x.append(dataset[i])
-			validation_labels.append(labels[i])
-		elif flag[i] == FLAG_LABELED:
-			training_labeled_x.append(dataset[i])
-			training_labels.append(labels[i])
+	for n in xrange(len(dataset)):
+		if check(n):
+			indices_for_label[labels[n]].append(n)
+			training_labeled_x.append(dataset[n])
+			training_labels.append(labels[n])
 		else:
-			pass
+			if len(training_unlabeled_x) < num_unlabeled_data:
+				training_unlabeled_x.append(dataset[n])
+			else:
+				validation_x.append(dataset[n])
+				validation_labels.append(labels[n])
 
 	return training_labeled_x, training_labels, training_unlabeled_x, validation_x, validation_labels
 

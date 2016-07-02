@@ -266,8 +266,13 @@ class VAE():
 
 		if self.gpu:
 			loss_labeled.to_cpu()
-			loss_unlabeled.to_cpu()
-		return loss_labeled.data, loss_unlabeled.data
+			if loss_unlabeled:
+				loss_unlabeled.to_cpu()
+
+		if loss_unlabeled:
+			return loss_labeled.data, loss_unlabeled.data
+
+		return loss_labeled.data, 0
 
 	# Extended objective eq.9
 	def train_classification(self, labeled_x, label_ids, alpha=1.0, test=False):
@@ -288,9 +293,14 @@ class VAE():
 		self.update()
 		if self.gpu:
 			loss_lb_labled.to_cpu()
-			loss_lb_unlabled.to_cpu()
+			if loss_lb_unlabled:
+				loss_lb_unlabled.to_cpu()
 			loss_classification.to_cpu()
-		return loss_lb_labled.data, loss_lb_unlabled.data, loss_classification.data
+
+		if loss_lb_unlabled:
+			return loss_lb_labled.data, loss_lb_unlabled.data, loss_classification.data
+
+		return loss_lb_labled.data, 0, loss_classification.data
 
 	def compute_lower_bound_loss(self, labeled_x, labeled_y, label_ids, unlabeled_x, test=False):
 
@@ -320,71 +330,76 @@ class VAE():
 			# when decoder(M2) is gaussian.
 			lower_bound_l = log_px_zy_l + log_py_l - self.gaussian_kl_divergence_keepbatch(z_mean_l, z_ln_var_l)
 
-		### Lower bound for unlabeled data ###
-		# To marginalize y, we repeat unlabeled x, and construct a target (batchsize_u * num_types_of_label) x num_types_of_label
-		# Example of n-dimensional x and target matrix for a 3 class problem and batch_size=2.
-		#         unlabeled_x_ext                 y_ext
-		#  [[x0[0], x0[1], ..., x0[n]]         [[1, 0, 0]
-		#   [x1[0], x1[1], ..., x1[n]]          [1, 0, 0]
-		#   [x0[0], x0[1], ..., x0[n]]          [0, 1, 0]
-		#   [x1[0], x1[1], ..., x1[n]]          [0, 1, 0]
-		#   [x0[0], x0[1], ..., x0[n]]          [0, 0, 1]
-		#   [x1[0], x1[1], ..., x1[n]]]         [0, 0, 1]]
-		# We thank Lars Maaloe.
-		# See https://github.com/larsmaaloee/auxiliary-deep-generative-models
+		if batchsize_u > 0:
+			### Lower bound for unlabeled data ###
+			# To marginalize y, we repeat unlabeled x, and construct a target (batchsize_u * num_types_of_label) x num_types_of_label
+			# Example of n-dimensional x and target matrix for a 3 class problem and batch_size=2.
+			#         unlabeled_x_ext                 y_ext
+			#  [[x0[0], x0[1], ..., x0[n]]         [[1, 0, 0]
+			#   [x1[0], x1[1], ..., x1[n]]          [1, 0, 0]
+			#   [x0[0], x0[1], ..., x0[n]]          [0, 1, 0]
+			#   [x1[0], x1[1], ..., x1[n]]          [0, 1, 0]
+			#   [x0[0], x0[1], ..., x0[n]]          [0, 0, 1]
+			#   [x1[0], x1[1], ..., x1[n]]]         [0, 0, 1]]
+			# We thank Lars Maaloe.
+			# See https://github.com/larsmaaloee/auxiliary-deep-generative-models
 
-		unlabeled_x_ext = xp.zeros((batchsize_u * num_types_of_label, unlabeled_x.data.shape[1]), dtype=xp.float32)
-		y_ext = xp.zeros((batchsize_u * num_types_of_label, num_types_of_label), dtype=xp.float32)
-		for n in xrange(num_types_of_label):
-			y_ext[n * batchsize_u:(n + 1) * batchsize_u,n] = 1
-			unlabeled_x_ext[n * batchsize_u:(n + 1) * batchsize_u] = unlabeled_x.data
-		y_ext = Variable(y_ext)
-		unlabeled_x_ext = Variable(unlabeled_x_ext)
+			unlabeled_x_ext = xp.zeros((batchsize_u * num_types_of_label, unlabeled_x.data.shape[1]), dtype=xp.float32)
+			y_ext = xp.zeros((batchsize_u * num_types_of_label, num_types_of_label), dtype=xp.float32)
+			for n in xrange(num_types_of_label):
+				y_ext[n * batchsize_u:(n + 1) * batchsize_u,n] = 1
+				unlabeled_x_ext[n * batchsize_u:(n + 1) * batchsize_u] = unlabeled_x.data
+			y_ext = Variable(y_ext)
+			unlabeled_x_ext = Variable(unlabeled_x_ext)
 
-		# Compute eq.6 -L(x,y) for unlabeled data
-		z_mean_u_ext, z_mean_ln_var_u_ext = self.encoder_xy_z(unlabeled_x_ext, y_ext, test=test, apply_f=False)
-		z_u_ext = F.gaussian(z_mean_u_ext, z_mean_ln_var_u_ext)
-		log_px_zy_u = self.log_px_zy(unlabeled_x_ext, z_u_ext, y_ext, test=test)
-		log_py_u = self.log_py(y_ext, test=test)
-		if isinstance(self, GaussianM2VAE):
-			log_pz_u = self.log_pz(z_u_ext, z_mean_u_ext, z_mean_ln_var_u_ext, test=test)
-			log_qz_xy_u = self.log_qz_xy(z_u_ext, z_mean_u_ext, z_mean_ln_var_u_ext, test=test)
-			lower_bound_u = lower_bound(log_px_zy_u, log_py_u, log_pz_u, log_qz_xy_u)
+			# Compute eq.6 -L(x,y) for unlabeled data
+			z_mean_u_ext, z_mean_ln_var_u_ext = self.encoder_xy_z(unlabeled_x_ext, y_ext, test=test, apply_f=False)
+			z_u_ext = F.gaussian(z_mean_u_ext, z_mean_ln_var_u_ext)
+			log_px_zy_u = self.log_px_zy(unlabeled_x_ext, z_u_ext, y_ext, test=test)
+			log_py_u = self.log_py(y_ext, test=test)
+			if isinstance(self, GaussianM2VAE):
+				log_pz_u = self.log_pz(z_u_ext, z_mean_u_ext, z_mean_ln_var_u_ext, test=test)
+				log_qz_xy_u = self.log_qz_xy(z_u_ext, z_mean_u_ext, z_mean_ln_var_u_ext, test=test)
+				lower_bound_u = lower_bound(log_px_zy_u, log_py_u, log_pz_u, log_qz_xy_u)
+			else:
+				# Another form of lower bound but this does not achieve the accuracy (97% M1+M2) described in the paper 
+				# when decoder(M2) is gaussian.
+				lower_bound_u = log_px_zy_u + log_py_u - self.gaussian_kl_divergence_keepbatch(z_mean_u_ext, z_mean_ln_var_u_ext)
+
+			# Compute eq.7 sum_y{q(y|x){-L(x,y) + H(q(y|x))}}
+			# Let LB(xn, y) be the lower bound for an input image xn and a label y (y = 0, 1, ..., 9).
+			# Let bs be the batchsize.
+			# 
+			# lower_bound_u is a vector and it looks like...
+			# [LB(x0,0), LB(x1,0), ..., LB(x_bs,0), LB(x0,1), LB(x1,1), ..., LB(x_bs,1), ..., LB(x0,9), LB(x1,9), ..., LB(x_bs,9)]
+			# 
+			# After reshaping. (axis 1 corresponds to label, axis 2 corresponds to batch)
+			# [[LB(x0,0), LB(x1,0), ..., LB(x_bs,0)],
+			#  [LB(x0,1), LB(x1,1), ..., LB(x_bs,1)],
+			#                   .
+			#                   .
+			#                   .
+			#  [LB(x0,9), LB(x1,9), ..., LB(x_bs,9)]]
+			# 
+			# After transposing. (axis 1 corresponds to batch)
+			# [[LB(x0,0), LB(x0,1), ..., LB(x0,9)],
+			#  [LB(x1,0), LB(x1,1), ..., LB(x1,9)],
+			#                   .
+			#                   .
+			#                   .
+			#  [LB(x_bs,0), LB(x_bs,1), ..., LB(x_bs,9)]]
+			lower_bound_u = F.transpose(F.reshape(lower_bound_u, (num_types_of_label, batchsize_u)))
+			
+			y_distribution = self.encoder_x_y(unlabeled_x, test=test, softmax=True)
+			lower_bound_u = y_distribution * (lower_bound_u - F.log(y_distribution + 1e-6))
+
+			loss_labeled = -F.sum(lower_bound_l) / batchsize_l
+			loss_unlabeled = -F.sum(lower_bound_u) / batchsize_u
+			loss = loss_labeled + loss_unlabeled
 		else:
-			# Another form of lower bound but this does not achieve the accuracy (97% M1+M2) described in the paper 
-			# when decoder(M2) is gaussian.
-			lower_bound_u = log_px_zy_u + log_py_u - self.gaussian_kl_divergence_keepbatch(z_mean_u_ext, z_mean_ln_var_u_ext)
-
-		# Compute eq.7 sum_y{q(y|x){-L(x,y) + H(q(y|x))}}
-		# Let LB(xn, y) be the lower bound for an input image xn and a label y (y = 0, 1, ..., 9).
-		# Let bs be the batchsize.
-		# 
-		# lower_bound_u is a vector and it looks like...
-		# [LB(x0,0), LB(x1,0), ..., LB(x_bs,0), LB(x0,1), LB(x1,1), ..., LB(x_bs,1), ..., LB(x0,9), LB(x1,9), ..., LB(x_bs,9)]
-		# 
-		# After reshaping. (axis 1 corresponds to label, axis 2 corresponds to batch)
-		# [[LB(x0,0), LB(x1,0), ..., LB(x_bs,0)],
-		#  [LB(x0,1), LB(x1,1), ..., LB(x_bs,1)],
-		#                   .
-		#                   .
-		#                   .
-		#  [LB(x0,9), LB(x1,9), ..., LB(x_bs,9)]]
-		# 
-		# After transposing. (axis 1 corresponds to batch)
-		# [[LB(x0,0), LB(x0,1), ..., LB(x0,9)],
-		#  [LB(x1,0), LB(x1,1), ..., LB(x1,9)],
-		#                   .
-		#                   .
-		#                   .
-		#  [LB(x_bs,0), LB(x_bs,1), ..., LB(x_bs,9)]]
-		lower_bound_u = F.transpose(F.reshape(lower_bound_u, (num_types_of_label, batchsize_u)))
-		
-		y_distribution = self.encoder_x_y(unlabeled_x, test=test, softmax=True)
-		lower_bound_u = y_distribution * (lower_bound_u - F.log(y_distribution + 1e-6))
-
-		loss_labeled = -F.sum(lower_bound_l) / batchsize_l
-		loss_unlabeled = -F.sum(lower_bound_u) / batchsize_u
-		loss = loss_labeled + loss_unlabeled
+			loss_unlabeled = None
+			loss_labeled = -F.sum(lower_bound_l) / batchsize_l
+			loss = loss_labeled
 
 		return loss, loss_labeled, loss_unlabeled
 

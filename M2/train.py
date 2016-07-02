@@ -16,13 +16,12 @@ dataset, labels = util.load_labeled_images(args.train_image_dir, dist=dist)
 
 max_epoch = 1000
 num_trains_per_epoch = 2000
-batchsize = 100
+batchsize_l = 100
+batchsize_u = 100
 
 # Create labeled/unlabeled split in training set
 num_types_of_label = 10
 num_labeled_data = args.num_labeled_data
-if num_labeled_data < batchsize:
-	batchsize = num_labeled_data
 num_validation_data = 10000
 labeled_dataset, labels, unlabeled_dataset, validation_dataset, validation_labels = util.create_semisupervised(dataset, labels, num_validation_data, num_labeled_data, num_types_of_label)
 print "labels:", labels
@@ -30,6 +29,12 @@ alpha = 0.1 * len(dataset) / len(labeled_dataset)
 alpha = 1.0
 print "alpha:", alpha
 print "dataset:: labeled: {:d} unlabeled: {:d} validation: {:d}".format(len(labeled_dataset), len(unlabeled_dataset), len(validation_dataset))
+
+if num_labeled_data < batchsize_l:
+	batchsize_l = num_labeled_data
+	
+if len(unlabeled_dataset) < batchsize_u:
+	batchsize_u = len(unlabeled_dataset)
 
 # from PIL import Image
 # for i in xrange(len(labeled_dataset)):
@@ -46,8 +51,8 @@ for epoch in xrange(max_epoch):
 	sum_loss_classifier = 0
 	epoch_time = time.time()
 	for t in xrange(num_trains_per_epoch):
-		x_labeled, y_labeled, label_ids = util.sample_x_and_label_variables(batchsize, conf.ndim_x, conf.ndim_y, labeled_dataset, labels, gpu_enabled=conf.gpu_enabled)
-		x_unlabeled = util.sample_x_variable(batchsize, conf.ndim_x, unlabeled_dataset, gpu_enabled=conf.gpu_enabled)
+		x_labeled, y_labeled, label_ids = util.sample_x_and_label_variables(batchsize_l, conf.ndim_x, conf.ndim_y, labeled_dataset, labels, gpu_enabled=conf.gpu_enabled)
+		x_unlabeled = util.sample_x_variable(batchsize_u, conf.ndim_x, unlabeled_dataset, gpu_enabled=conf.gpu_enabled)
 
 		# train
 		loss_labeled, loss_unlabeled = vae.train(x_labeled, y_labeled, label_ids, x_unlabeled)
