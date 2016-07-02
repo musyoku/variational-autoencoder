@@ -131,6 +131,20 @@ Model was trained with...
 
 ![M2](http://musyoku.github.io/images/post/2016-07-02/m2_analogy_100.png)
 
+| data | # |
+|:-----------|------------:|
+| labeled | 10000 |
+| unlabeled | 40000 |
+
+![M2](http://musyoku.github.io/images/post/2016-07-02/m2_analogy_10000.png)
+
+| data | # |
+|:-----------|------------:|
+| labeled | 50000 |
+| unlabeled | 0 |
+
+![M2](http://musyoku.github.io/images/post/2016-07-02/m2_analogy_50000.png)
+
 
 ## M1+M2
 

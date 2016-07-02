@@ -84,8 +84,7 @@ for epoch in xrange(max_epoch):
 
 	# Export to csv
 	csv_epoch.append([epoch, int(total_time / 60), correct / float(num_validation_data)])
-	if epoch % 10 == 0 and len(csv_epoch) > 0:
-		data = pd.DataFrame(csv_epoch)
-		data.columns = ["epoch", "min", "accuracy"]
-		data.to_csv("{:s}/epoch.csv".format(args.model_dir))
+	data = pd.DataFrame(csv_epoch)
+	data.columns = ["epoch", "min", "accuracy"]
+	data.to_csv("{:s}/epoch.csv".format(args.model_dir))
 
