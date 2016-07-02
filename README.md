@@ -34,6 +34,7 @@ To visualize results, you need
 | learning_rate | 0.0003 |
 | gradient_momentum | 0.9 |
 | gradient_clipping | 1.0 |
+| nonlinear | softplus|
 
 #### Result
 
@@ -67,6 +68,7 @@ To visualize results, you need
 | learning_rate | 0.0003 |
 | gradient_momentum | 0.9 |
 | gradient_clipping | 1.0 |
+| nonlinear | softplus|
 
 #### Result
 
@@ -96,6 +98,8 @@ To visualize results, you need
 ##### Analogies
 
 run `analogy.py` after training
+
+Model was trained with...
 
 | data | # |
 |:-----------|------------:|
@@ -128,6 +132,7 @@ run `analogy.py` after training
 | learning_rate | 0.0003 |
 | gradient_momentum | 0.9 |
 | gradient_clipping | 1.0 |
+| nonlinear | softplus|
 
 We trained M1 for 500 epochs before starting training of M2.
 
@@ -163,6 +168,7 @@ We trained M1 for 500 epochs before starting training of M2.
 | gradient_clipping | 1.0 |
 | type_pz | gaussianmarg |
 | type_qz | gaussianmarg |
+| nonlinear | softplus|
 
 #### Result
 

@@ -266,13 +266,13 @@ class VAE():
 
 		if self.gpu:
 			loss_labeled.to_cpu()
-			if loss_unlabeled:
+			if loss_unlabeled is not None:
 				loss_unlabeled.to_cpu()
 
-		if loss_unlabeled:
-			return loss_labeled.data, loss_unlabeled.data
+		if loss_unlabeled is None:
+			return loss_labeled.data, 0
 
-		return loss_labeled.data, 0
+		return loss_labeled.data, loss_unlabeled.data
 
 	# Extended objective eq.9
 	def train_classification(self, labeled_x, label_ids, alpha=1.0, test=False):
@@ -293,14 +293,14 @@ class VAE():
 		self.update()
 		if self.gpu:
 			loss_lb_labled.to_cpu()
-			if loss_lb_unlabled:
+			if loss_lb_unlabled is not None:
 				loss_lb_unlabled.to_cpu()
 			loss_classification.to_cpu()
 
-		if loss_lb_unlabled:
-			return loss_lb_labled.data, loss_lb_unlabled.data, loss_classification.data
+		if loss_lb_unlabled is None:
+			return loss_lb_labled.data, 0, loss_classification.data
 
-		return loss_lb_labled.data, 0, loss_classification.data
+		return loss_lb_labled.data, loss_lb_unlabled.data, loss_classification.data
 
 	def compute_lower_bound_loss(self, labeled_x, labeled_y, label_ids, unlabeled_x, test=False):
 

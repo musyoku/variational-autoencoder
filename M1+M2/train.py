@@ -69,11 +69,11 @@ for epoch in xrange(max_epoch):
 		z_unlabeled = Variable(vae1.encoder(x_unlabeled, test=True, apply_f=True).data)
 
 		# train
-		# loss_labeled, loss_unlabeled, loss_classifier = vae2.train_jointly(z_labeled, y_labeled, label_ids, z_unlabeled, alpha=alpha, test=False)
+		loss_labeled, loss_unlabeled, loss_classifier = vae2.train_jointly(z_labeled, y_labeled, label_ids, z_unlabeled, alpha=alpha, test=False)
 		
 		# train
-		loss_labeled, loss_unlabeled = vae2.train(z_labeled, y_labeled, label_ids, z_unlabeled)
-		loss_classifier = vae2.train_classification(z_labeled, label_ids, alpha=alpha)
+		# loss_labeled, loss_unlabeled = vae2.train(z_labeled, y_labeled, label_ids, z_unlabeled)
+		# loss_classifier = vae2.train_classification(z_labeled, label_ids, alpha=alpha)
 		
 		sum_loss_labeled += loss_labeled
 		sum_loss_unlabeled += loss_unlabeled
