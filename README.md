@@ -203,8 +203,6 @@ We trained M1 for 500 epochs before starting training of M2.
 | learning_rate | 0.0003 |
 | gradient_momentum | 0.9 |
 | gradient_clipping | 1.0 |
-| type_pz | gaussianmarg |
-| type_qz | gaussianmarg |
 | nonlinear | softplus|
 
 #### Result

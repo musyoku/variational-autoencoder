@@ -236,23 +236,21 @@ class VAE():
 		log_py = xp.full((y.data.shape[0],), constant, xp.float32)
 		return Variable(log_py)
 
-	# this will not be used for bernoulli decoder
+	# this will not be used
 	def log_pz(self, z, mean, ln_var, test=False):
 		if self.type_pz == "gaussianmarg":
 			# \int q(z)logp(z)dz = -(J/2)*log2pi - (1/2)*sum_{j=1}^{J} (mu^2 + var)
 			# See Appendix B [Auto-Encoding Variational Bayes](http://arxiv.org/abs/1312.6114)
-			# See https://github.com/dpkingma/nips14-ssl/blob/master/anglepy/models/VAE_YZ_X.py line 106
 			log_pz = -0.5 * (math.log(2.0 * math.pi) + mean * mean + F.exp(ln_var))
 		elif self.type_pz == "gaussian":
 			log_pz = -0.5 * math.log(2.0 * math.pi) - 0.5 * z ** 2
 		return F.sum(log_pz, axis=1)
 
-	# this will not be used for bernoulli decoder
+	# this will not be used
 	def log_qz_xy(self, z, mean, ln_var, test=False):
 		if self.type_qz == "gaussianmarg":
 			# \int q(z)logq(z)dz = -(J/2)*log2pi - (1/2)*sum_{j=1}^{J} (1 + logvar)
 			# See Appendix B [Auto-Encoding Variational Bayes](http://arxiv.org/abs/1312.6114)
-			# See https://github.com/dpkingma/nips14-ssl/blob/master/anglepy/models/VAE_YZ_X.py line 118
 			log_qz_xy = -0.5 * F.sum((math.log(2.0 * math.pi) + 1 + ln_var), axis=1)
 		elif self.type_qz == "gaussian":
 			log_qz_xy = -self.gaussian_nll_keepbatch(z, mean, ln_var)
@@ -321,13 +319,11 @@ class VAE():
 		z_l = self.encoder_xy_z(labeled_x, labeled_y, test=test)
 		log_px_zy_l = self.log_px_zy(labeled_x, z_l, labeled_y, test=test)
 		log_py_l = self.log_py(labeled_y, test=test)
-		if isinstance(self, GaussianM2VAE):
+		if False:
 			log_pz_l = self.log_pz(z_l, z_mean_l, z_ln_var_l, test=test)
 			log_qz_xy_l = self.log_qz_xy(z_l, z_mean_l, z_ln_var_l, test=test)
 			lower_bound_l = lower_bound(log_px_zy_l, log_py_l, log_pz_l, log_qz_xy_l)
 		else:
-			# Another form of lower bound but this does not achieve the accuracy (97% M1+M2) described in the paper 
-			# when decoder(M2) is gaussian.
 			lower_bound_l = log_px_zy_l + log_py_l - self.gaussian_kl_divergence_keepbatch(z_mean_l, z_ln_var_l)
 
 		if batchsize_u > 0:
@@ -357,13 +353,11 @@ class VAE():
 			z_u_ext = F.gaussian(z_mean_u_ext, z_mean_ln_var_u_ext)
 			log_px_zy_u = self.log_px_zy(unlabeled_x_ext, z_u_ext, y_ext, test=test)
 			log_py_u = self.log_py(y_ext, test=test)
-			if isinstance(self, GaussianM2VAE):
+			if False:
 				log_pz_u = self.log_pz(z_u_ext, z_mean_u_ext, z_mean_ln_var_u_ext, test=test)
 				log_qz_xy_u = self.log_qz_xy(z_u_ext, z_mean_u_ext, z_mean_ln_var_u_ext, test=test)
 				lower_bound_u = lower_bound(log_px_zy_u, log_py_u, log_pz_u, log_qz_xy_u)
 			else:
-				# Another form of lower bound but this does not achieve the accuracy (97% M1+M2) described in the paper 
-				# when decoder(M2) is gaussian.
 				lower_bound_u = log_px_zy_u + log_py_u - self.gaussian_kl_divergence_keepbatch(z_mean_u_ext, z_mean_ln_var_u_ext)
 
 			# Compute eq.7 sum_y{q(y|x){-L(x,y) + H(q(y|x))}}
