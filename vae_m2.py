@@ -436,7 +436,7 @@ class VAE():
 class GaussianM2VAE(VAE):
 
 	def build(self, conf):
-		wscale = 0.1
+		wscale = 0.01
 		encoder_xy_z_attributes = {}
 		encoder_xy_z_units = zip(conf.encoder_xy_z_hidden_units[:-1], conf.encoder_xy_z_hidden_units[1:])
 		for i, (n_in, n_out) in enumerate(encoder_xy_z_units):
@@ -507,7 +507,7 @@ class GaussianM2VAE(VAE):
 class BernoulliM2VAE(VAE):
 
 	def build(self, conf):
-		wscale = 0.1
+		wscale = 0.01
 		encoder_xy_z_attributes = {}
 		encoder_xy_z_units = zip(conf.encoder_xy_z_hidden_units[:-1], conf.encoder_xy_z_hidden_units[1:])
 		for i, (n_in, n_out) in enumerate(encoder_xy_z_units):
