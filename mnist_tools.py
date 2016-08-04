@@ -37,14 +37,14 @@ def load_mnist(data_filename, label_filename, num):
 	return data, label
 
 def download_mnist_data():
-	print("Downloading {:s}...".format(train_images_filename))
-	request.urlretrieve("{:s}/{:s}".format(parent, train_images_filename), train_images_filename)
-	print("Downloading {:s}...".format(train_labels_filename))
-	request.urlretrieve("{:s}/{:s}".format(parent, train_labels_filename), train_labels_filename)
-	print("Downloading {:s}...".format(test_images_filename))
-	request.urlretrieve("{:s}/{:s}".format(parent, test_images_filename), test_images_filename)
-	print("Downloading {:s}...".format(test_labels_filename))
-	request.urlretrieve("{:s}/{:s}".format(parent, test_labels_filename), test_labels_filename)
+	print("Downloading {}...".format(train_images_filename))
+	request.urlretrieve("{}/{}".format(parent, train_images_filename), train_images_filename)
+	print("Downloading {}...".format(train_labels_filename))
+	request.urlretrieve("{}/{}".format(parent, train_labels_filename), train_labels_filename)
+	print("Downloading {}...".format(test_images_filename))
+	request.urlretrieve("{}/{}".format(parent, test_images_filename), test_images_filename)
+	print("Downloading {}...".format(test_labels_filename))
+	request.urlretrieve("{}/{}".format(parent, test_labels_filename), test_labels_filename)
 	print("Done")
 
 def extract_mnist_data():
@@ -58,13 +58,13 @@ def extract_mnist_data():
 	return data_train, label_train, data_test, label_test
 
 data_train, label_train, data_test, label_test = extract_mnist_data()
-print "Saving traing images..."
+print "Saving training images..."
 for i in xrange(data_train.shape[0]):
 	image = Image.fromarray(data_train[i].reshape(28, 28))
-	image.save("{:s}/{:d}_{:d}.bmp".format(train_dir, label_train[i], i))
+	image.save("{}/{}_{}.bmp".format(train_dir, label_train[i], i))
 print "Saving test images..."
 for i in xrange(data_test.shape[0]):
 	image = Image.fromarray(data_test[i].reshape(28, 28))
-	image.save("{:s}/{:d}_{:d}.bmp".format(test_dir, label_test[i], i))
+	image.save("{}/{}_{}.bmp".format(test_dir, label_test[i], i))
 print("Done")
 	
