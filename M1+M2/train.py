@@ -27,9 +27,9 @@ if num_labeled_data < batchsize:
 num_validation_data = 10000
 labeled_dataset, labels, unlabeled_dataset, validation_dataset, validation_labels = util.create_semisupervised(dataset, labels, num_validation_data, num_labeled_data, num_types_of_label)
 print "labels:", labels
-alpha = 0.1 * len(dataset)
+# alpha = 0.1 * len(dataset)
 # alpha = 0.1 * len(dataset) / len(labeled_dataset)
-# alpha = 1
+alpha = 1
 print "alpha:", alpha
 print "dataset:: labeled: {:d} unlabeled: {:d} validation: {:d}".format(len(labeled_dataset), len(unlabeled_dataset), len(validation_dataset))
 
@@ -70,11 +70,11 @@ for epoch in xrange(max_epoch):
 		z_unlabeled = Variable(vae1.encoder(x_unlabeled, test=True, apply_f=True).data)
 
 		# train
-		loss_labeled, loss_unlabeled, loss_classifier = vae2.train_jointly(z_labeled, y_labeled, label_ids, z_unlabeled, alpha=alpha, test=False)
+		# loss_labeled, loss_unlabeled, loss_classifier = vae2.train_jointly(z_labeled, y_labeled, label_ids, z_unlabeled, alpha=alpha, test=False)
 		
 		# train
-		# loss_labeled, loss_unlabeled = vae2.train(z_labeled, y_labeled, label_ids, z_unlabeled)
-		# loss_classifier = vae2.train_classification(z_labeled, label_ids, alpha=alpha)
+		loss_labeled, loss_unlabeled = vae2.train(z_labeled, y_labeled, label_ids, z_unlabeled)
+		loss_classifier = vae2.train_classification(z_labeled, label_ids, alpha=alpha)
 		
 		sum_loss_labeled += loss_labeled
 		sum_loss_unlabeled += loss_unlabeled
