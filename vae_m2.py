@@ -306,7 +306,7 @@ class VAE():
 		### Lower bound for labeled data ###
 		# Compute eq.6 -L(x,y)
 		z_mean_l, z_ln_var_l = self.encoder_xy_z(labeled_x, labeled_y, test=test, apply_f=False)
-		z_l = self.encoder_xy_z(labeled_x, labeled_y, test=test)
+		z_l = F.gaussian(z_mean_l, z_ln_var_l)
 		log_px_zy_l = self.log_px_zy(labeled_x, z_l, labeled_y, test=test)
 		log_py_l = self.log_py(labeled_y, test=test)
 		if False:
