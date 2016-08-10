@@ -25,7 +25,7 @@ class Conf():
 		self.ndim_z = 50
 
 		# True : y = f(BN(Wx + b))
-		# False: y = BN(Wf(x) + b)
+		# False: y = f(W*BN(x) + b)
 		self.batchnorm_before_activation = True
 
 		# gaussianmarg | gaussian
