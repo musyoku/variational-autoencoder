@@ -29,7 +29,6 @@ class Conf():
 		self.batchnorm_before_activation = True
 
 		# gaussianmarg | gaussian
-		# We recommend you to use "gaussianmarg" when decoder is gaussian
 		self.type_pz = "gaussianmarg"
 		self.type_qz = "gaussianmarg"
 
@@ -136,9 +135,6 @@ class VAE():
 		self.optimizer_encoder_xy_z.zero_grads()
 		self.optimizer_encoder_x_y.zero_grads()
 		self.optimizer_decoder.zero_grads()
-
-	def zero_grads_classifier(self):
-		self.optimizer_encoder_x_y.zero_grads()
 
 	def update(self):
 		self.optimizer_encoder_xy_z.update()
@@ -275,7 +271,7 @@ class VAE():
 	# Extended objective eq.9
 	def train_classification(self, labeled_x, label_ids, alpha=1.0, test=False):
 		loss = alpha * self.compute_classification_loss(labeled_x, label_ids, test=test)
-		self.zero_grads_classifier()
+		self.zero_grads()
 		loss.backward()
 		self.update_classifier()
 		if self.gpu:
@@ -337,8 +333,6 @@ class VAE():
 			#   [x1[0], x1[1], ..., x1[n]]          [0, 1, 0]
 			#   [x0[0], x0[1], ..., x0[n]]          [0, 0, 1]
 			#   [x1[0], x1[1], ..., x1[n]]]         [0, 0, 1]]
-			# We thank Lars Maaloe.
-			# See https://github.com/larsmaaloee/auxiliary-deep-generative-models
 
 			unlabeled_x_ext = xp.zeros((batchsize_u * num_types_of_label, unlabeled_x.data.shape[1]), dtype=xp.float32)
 			y_ext = xp.zeros((batchsize_u * num_types_of_label, num_types_of_label), dtype=xp.float32)
