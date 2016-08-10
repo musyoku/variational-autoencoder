@@ -638,11 +638,11 @@ class GaussianEncoder(chainer.Chain):
 		# Hidden
 		for i in range(self.n_layers):
 			u = chain[-1]
-			if batchnorm_before_activation:
+			if self.batchnorm_before_activation:
 				u = getattr(self, "layer_%i" % i)(u)
 			if self.apply_batchnorm:
 				u = getattr(self, "batchnorm_%d" % i)(u, test=test)
-			if batchnorm_before_activation == False:
+			if self.batchnorm_before_activation == False:
 				u = getattr(self, "layer_%i" % i)(u)
 			output = f(u)
 			if self.apply_dropout:
